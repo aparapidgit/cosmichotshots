@@ -3,6 +3,16 @@
 	"EngineAssociation": "{FF6F3E04-4A6E-57DE-ADA5-EDAF288277B6}",
 	"Category": "",
 	"Description": "",
+	"Modules": [
+		{
+			"Name": "CosmicHotshotsGame",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [
+				"Engine"
+			]
+		}
+	],
 	"Plugins": [
 		{
 			"Name": "ModelingToolsEditorMode",

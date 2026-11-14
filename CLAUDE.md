@@ -27,6 +27,11 @@ Custom arcade hover physics on ONE rigid body. Not Chaos Vehicle.
 - Air control: small pitch/roll correction in the air, extra gravity so it feels snappy, not floaty.
 - Everything tunable in data assets, never hardcoded.
 
+### Physics step (decided, set in `Config/DefaultEngine.ini` under `[/Script/Engine.PhysicsSettings]`)
+- `bTickPhysicsAsync=True`, `AsyncFixedTimeStepSize=0.008333` (1/120 s): physics runs on a FIXED step so the driving feel is the same at 30, 60 and 144 FPS. Vehicle forces are applied in `UActorComponent::AsyncPhysicsTickComponent` through the physics-thread body handle. The engine still labels async physics "experimental"; the developer approved it as an explicit exception to the no-Experimental rule.
+- `MaxPhysicsDeltaTime=0.05`: the engine clamps the frame time it hands to physics to this value. The engine default is 1/30 s, which means any frame longer than 33 ms (i.e. running at or below 30 FPS) makes the game run in slow motion. 0.05 s moves that limit down to 20 FPS, so a 30 FPS frame rate (split-screen, weak PC) still simulates in real time. Below 20 FPS the game slows down instead of taking huge physics catch-up bursts.
+- Check any change to these values with `Scripts/run_hover_test.ps1` at 30, 60 and 144 FPS; the logged numbers must match.
+
 ## Characters and passive abilities (race-state driven)
 Game: Cosmic Hotshots. Precise steering with mild drifting. Passives adapt the car in real time and each should encourage a recognisable driving style. All numbers (bonuses, durations, thresholds) are PLACEHOLDERS to be tuned through playtesting. Everything must live in data assets.
 
