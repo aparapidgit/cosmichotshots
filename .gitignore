@@ -1,0 +1,37 @@
+# Unreal Engine 5 - generated folders
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+Build/
+.vs/
+.idea/
+.vscode/
+
+# Generated project files
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+*.xcworkspace
+*.xcodeproj
+*.code-workspace
+
+# Plugins built binaries
+Plugins/**/Binaries/
+Plugins/**/Intermediate/
+
+# Packaged builds
+Packaged/
+Archived/
+
+# Python / OS
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+
+# Local Claude Code settings
+.claude/settings.local.json
