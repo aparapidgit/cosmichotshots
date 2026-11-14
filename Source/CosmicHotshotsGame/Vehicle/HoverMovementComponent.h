@@ -34,6 +34,9 @@ public:
 	/** Latest driver intent. Called on the game thread by the owning vehicle. */
 	void SetInput(const FVehicleInputState& InInput);
 
+	/** Weakens grip and steering for a short time (wobble or spin-out after a strong hit). Never shortens a running one. */
+	void ApplyControlLoss(float Duration);
+
 	/** State of the last physics step (for debug display and, later, HUD/VFX). */
 	const FHoverSimState& GetSimState() const { return SimState; }
 
@@ -45,7 +48,11 @@ private:
 	/** Data asset values with console overrides applied. */
 	FHoverSimParams BuildSimParams() const;
 
-	void LogAndTestHooks(float DeltaTime);
+	/** Advances the simulation clock and writes the periodic state line to the log. Called from the physics step. */
+	void LogStep(float DeltaTime);
+
+	/** Dev-only test helpers (dummy car, screenshot, auto quit). Called from the normal game tick. */
+	void RunTestHelpers();
 	void DrawDebug() const;
 
 	UPROPERTY(Transient)
@@ -62,6 +69,11 @@ private:
 	 * A frame can have zero physics steps (high frame rates), so a short press must be remembered.
 	 */
 	bool bBoostPressedLatch = false;
+
+	bool IsOwnerPlayerControlled() const;
+
+	/** Test helper (ch.Test.SpawnDummyAhead): the dummy car has been spawned. */
+	bool bTestDummySpawned = false;
 
 	/** Test helper (ch.Test.ScreenshotTime): the one screenshot has been requested. */
 	bool bTestScreenshotTaken = false;

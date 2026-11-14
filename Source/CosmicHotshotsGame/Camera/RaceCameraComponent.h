@@ -37,6 +37,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Race Camera")
 	void SetSpeedLinesScale(float InScale) { SpeedLinesScale = FMath::Clamp(InScale, 0.f, 1.f); }
 
+	/** Player's camera shake strength, 0 (off) to 1 (full). */
+	UFUNCTION(BlueprintCallable, Category = "Race Camera")
+	void SetShakeScale(float InScale) { ShakeScale = FMath::Clamp(InScale, 0.f, 1.f); }
+
+	/** Starts a short shake. Strength is 0..1 (see FVehicleImpactInfo::Strength). */
+	UFUNCTION(BlueprintCallable, Category = "Race Camera")
+	void AddImpactShake(float Strength);
+
 	/** Hold to look behind the car. */
 	UFUNCTION(BlueprintCallable, Category = "Race Camera")
 	void SetLookBack(bool bInLookBack) { bLookBack = bInLookBack; }
@@ -67,6 +75,9 @@ private:
 	/** Converts a horizontal FOV on 16:9 to the vertical FOV this camera is driven with, capped for very wide viewports. */
 	float ToVerticalFov(float HorizontalFovOn16By9, const UCameraTuningData& ActiveTuning) const;
 
+	/** Player's camera shake strength with the dev console override applied. */
+	float GetShakeScale() const;
+
 	/** Player's speed lines strength with the dev console override applied. */
 	float GetSpeedLinesScale() const;
 
@@ -86,6 +97,12 @@ private:
 	float BoostEffect = 0.f;
 	/** 0..1 fraction of the ideal camera arm that is free of obstacles. */
 	float ArmFraction = 1.f;
+
+	/** Player's camera shake strength, 0 (off) to 1 (full). Set from Options later. */
+	float ShakeScale = 1.f;
+	/** Strength (0..1) and time left of the running impact shake. */
+	float ShakeStrength = 0.f;
+	float ShakeTimeRemaining = 0.f;
 
 	/** Player's speed lines strength, 0 (off) to 1 (full). Set from Options later. */
 	float SpeedLinesScale = 1.f;

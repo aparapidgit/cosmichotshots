@@ -44,6 +44,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Actions")
 	TObjectPtr<UInputAction> UseItem;
 
+	/** Controller rumble strength (0..1) for the strongest impact. Weaker hits rumble proportionally less. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Rumble", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float ImpactRumbleMaxIntensity = 0.8f;
+
+	/** How long an impact rumble lasts (s). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Rumble", meta = (ClampMin = "0.0"))
+	float ImpactRumbleDuration = 0.25f;
+
 	/** Hold to look behind the car. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Actions")
 	TObjectPtr<UInputAction> LookBack;

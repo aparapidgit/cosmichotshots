@@ -5,6 +5,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
+#include "Vehicle/VehicleImpactComponent.h"
 #include "Vehicle/VehicleInputState.h"
 #include "RaceVehicle.generated.h"
 
@@ -29,6 +30,10 @@ public:
 
 	UHoverMovementComponent* GetHoverMovement() const { return HoverMovement; }
 	URaceCameraComponent* GetRaceCamera() const { return RaceCamera; }
+	UVehicleImpactComponent* GetImpact() const { return Impact; }
+
+	/** Mass of the vehicle's rigid body in kg. */
+	float GetBodyMass() const;
 
 	/** This vehicle's tuning asset, else the project default (Project Settings > Cosmic Hotshots), else the class defaults. */
 	const UVehicleTuningData* GetActiveTuning() const;
@@ -42,6 +47,10 @@ protected:
 	/** Applies mass, damping and surface material from the tuning asset. Runtime only. */
 	void ApplyBodyPhysics(const UVehicleTuningData& ActiveTuning);
 
+	/** Forwards impacts to this vehicle's own presentation (camera shake). */
+	UFUNCTION()
+	void HandleImpact(const FVehicleImpactInfo& ImpactInfo);
+
 	/** Simulated root: the one rigid body of the vehicle, with a rounded two-capsule hull. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle")
 	TObjectPtr<UVehicleHullComponent> Body;
@@ -52,6 +61,10 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle")
 	TObjectPtr<UHoverMovementComponent> HoverMovement;
+
+	/** Arcade response to hitting other cars and walls. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle")
+	TObjectPtr<UVehicleImpactComponent> Impact;
 
 	/** Third-person chase camera of this vehicle's driver. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle")

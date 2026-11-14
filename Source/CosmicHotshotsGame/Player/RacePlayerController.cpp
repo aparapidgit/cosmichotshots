@@ -62,6 +62,41 @@ void ARacePlayerController::BeginPlay()
 	}
 }
 
+void ARacePlayerController::OnPossess(APawn* InPawn)
+{
+	Super::OnPossess(InPawn);
+
+	if (const ARaceVehicle* Vehicle = Cast<ARaceVehicle>(InPawn))
+	{
+		Vehicle->GetImpact()->OnImpact.AddUniqueDynamic(this, &ARacePlayerController::HandleVehicleImpact);
+	}
+}
+
+void ARacePlayerController::OnUnPossess()
+{
+	if (const ARaceVehicle* Vehicle = Cast<ARaceVehicle>(GetPawn()))
+	{
+		Vehicle->GetImpact()->OnImpact.RemoveDynamic(this, &ARacePlayerController::HandleVehicleImpact);
+	}
+
+	Super::OnUnPossess();
+}
+
+void ARacePlayerController::HandleVehicleImpact(const FVehicleImpactInfo& ImpactInfo)
+{
+	if (!DrivingInput || !IsLocalController())
+	{
+		return;
+	}
+
+	const float Intensity = DrivingInput->ImpactRumbleMaxIntensity * ImpactInfo.Strength;
+	if (Intensity > 0.f && DrivingInput->ImpactRumbleDuration > 0.f)
+	{
+		PlayDynamicForceFeedback(Intensity, DrivingInput->ImpactRumbleDuration,
+			/*bAffectsLeftLarge=*/true, /*bAffectsLeftSmall=*/true, /*bAffectsRightLarge=*/true, /*bAffectsRightSmall=*/true);
+	}
+}
+
 void ARacePlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);

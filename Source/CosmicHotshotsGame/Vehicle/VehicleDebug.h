@@ -31,10 +31,16 @@ namespace CosmicHotshots::VehicleCVars
 	/** Test helper: quit the game after this many seconds of simulation time. 0 = off. */
 	extern TAutoConsoleVariable<float> AutoQuitTime;
 
+	/** Test helper: spawn a stationary dummy car this far ahead of the player (cm). 0 = off. */
+	extern TAutoConsoleVariable<float> SpawnDummyAhead;
+
+	/** Test helper: sideways offset of the dummy car (cm, positive = to the right). */
+	extern TAutoConsoleVariable<float> DummyLateralOffset;
+
 	/** Test helper: take one screenshot at this simulation time (seconds). 0 = off. */
 	extern TAutoConsoleVariable<float> ScreenshotTime;
 
-	/** Test helper: ignore the driver and feed a fixed input sequence. 1 = drive test, 2 = drift and boost test. */
+	/** Test helper: ignore the driver and feed a fixed input sequence. 1 = drive test, 2 = drift and boost test, 3 = wall hit test. */
 	extern TAutoConsoleVariable<int32> ScriptedInput;
 
 	/** Returns the console override when it is set (>= 0), otherwise the data asset value. */

@@ -60,11 +60,19 @@ namespace CosmicHotshots::VehicleCVars
 		TEXT("ch.Test.AutoQuitTime"), 0.f,
 		TEXT("Test helper: quit after this many seconds of simulation time. 0 = off."), ECVF_Cheat);
 
+	TAutoConsoleVariable<float> SpawnDummyAhead(
+		TEXT("ch.Test.SpawnDummyAhead"), 0.f,
+		TEXT("Test helper: spawn a stationary dummy car this far ahead of the player in cm. 0 = off."), ECVF_Cheat);
+
+	TAutoConsoleVariable<float> DummyLateralOffset(
+		TEXT("ch.Test.DummyLateralOffset"), 0.f,
+		TEXT("Test helper: sideways offset of the dummy car in cm (positive = to the right)."), ECVF_Cheat);
+
 	TAutoConsoleVariable<float> ScreenshotTime(
 		TEXT("ch.Test.ScreenshotTime"), 0.f,
 		TEXT("Test helper: take one screenshot at this simulation time in seconds. 0 = off."), ECVF_Cheat);
 
 	TAutoConsoleVariable<int32> ScriptedInput(
 		TEXT("ch.Test.ScriptedInput"), 0,
-		TEXT("Test helper: ignore the driver and feed a fixed input sequence. 1 = drive test, 2 = drift and boost test."), ECVF_Cheat);
+		TEXT("Test helper: ignore the driver and feed a fixed input sequence. 1 = drive test, 2 = drift and boost test, 3 = wall hit test."), ECVF_Cheat);
 }

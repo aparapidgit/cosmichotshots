@@ -158,6 +158,20 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Speed Lines", meta = (ClampMin = "0.1"))
 	float SpeedLinesInterpSpeed = 6.f;
 
+	// --------------------------------------------------------------- Shake
+
+	/** Camera shake angle (degrees) for the strongest impact. Weaker hits shake proportionally less. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Shake", meta = (ClampMin = "0.0"))
+	float ImpactShakeMaxAngle = 1.2f;
+
+	/** How long an impact shake lasts (s). It fades out over this time. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Shake", meta = (ClampMin = "0.01"))
+	float ImpactShakeDuration = 0.35f;
+
+	/** How fast the camera shakes (Hz). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Shake", meta = (ClampMin = "0.0"))
+	float ImpactShakeFrequency = 14.f;
+
 	// ----------------------------------------------------------- Collision
 
 	/** Radius of the probe that keeps the camera out of walls and hills (cm). */

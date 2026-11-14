@@ -81,6 +81,10 @@ struct FHoverSimParams
 	float AirLevelStrength = 0.f;
 	float AirLevelDamping = 0.f;
 
+	// Control loss after a strong hit (wobble, spin-out)
+	float ControlLossGripMultiplier = 1.f;
+	float ControlLossSteerMultiplier = 1.f;
+
 	/** Steering multiplier for a speed ratio, linearly interpolated from the baked samples. */
 	float GetSteeringMultiplier(float SpeedRatio) const;
 };
@@ -122,6 +126,9 @@ struct FDriftBoostState
 struct FHoverSimState
 {
 	FDriftBoostState DriftBoost;
+
+	/** Seconds of reduced grip and steering left after a strong hit. Carries over between steps like DriftBoost. */
+	float ControlLossTimeRemaining = 0.f;
 	TArray<FHoverPointState, TInlineAllocator<8>> Points;
 	int32 PointsOverGround = 0;
 	bool bGrounded = false;

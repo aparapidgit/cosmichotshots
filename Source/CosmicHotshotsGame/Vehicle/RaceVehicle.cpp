@@ -9,6 +9,7 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Vehicle/HoverMovementComponent.h"
 #include "Vehicle/VehicleHullComponent.h"
+#include "Vehicle/VehicleImpactComponent.h"
 #include "Vehicle/VehicleTuningData.h"
 
 namespace
@@ -41,8 +42,20 @@ ARaceVehicle::ARaceVehicle()
 
 	HoverMovement = CreateDefaultSubobject<UHoverMovementComponent>(TEXT("HoverMovement"));
 
+	Impact = CreateDefaultSubobject<UVehicleImpactComponent>(TEXT("Impact"));
+
 	RaceCamera = CreateDefaultSubobject<URaceCameraComponent>(TEXT("RaceCamera"));
 	RaceCamera->SetupAttachment(Body);
+}
+
+float ARaceVehicle::GetBodyMass() const
+{
+	return Body->GetMass();
+}
+
+void ARaceVehicle::HandleImpact(const FVehicleImpactInfo& ImpactInfo)
+{
+	RaceCamera->AddImpactShake(ImpactInfo.Strength);
 }
 
 const UVehicleTuningData* ARaceVehicle::GetActiveTuning() const
@@ -68,6 +81,9 @@ void ARaceVehicle::PostInitializeComponents()
 
 	HoverMovement->SetUpdatedBody(Body);
 	HoverMovement->SetTuning(ActiveTuning);
+
+	Impact->Initialize(Body, HoverMovement, ActiveTuning);
+	Impact->OnImpact.AddUniqueDynamic(this, &ARaceVehicle::HandleImpact);
 }
 
 void ARaceVehicle::ApplyBodyShape(const UVehicleTuningData& ActiveTuning)

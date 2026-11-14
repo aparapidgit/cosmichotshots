@@ -5,6 +5,7 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "GameFramework/Pawn.h"
 #include "PhysicsEngine/BodyInstance.h"
 #include "UnrealClient.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
@@ -21,6 +22,9 @@ namespace
 	// Debug display only.
 	constexpr float DebugPointSize = 8.f;
 
+	// Test helper: the dummy car is spawned once the player's car has settled.
+	constexpr double TestDummySpawnTime = 0.5;
+
 #if !UE_BUILD_SHIPPING
 	/**
 	 * Fixed input sequence for the headless frame-rate test (ch.Test.ScriptedInput 1).
@@ -31,9 +35,27 @@ namespace
 	FVehicleInputState GetScriptedTestInput(int32 Mode, double SimTime)
 	{
 		constexpr int32 DriftBoostMode = 2;
+		constexpr int32 WallHitMode = 3;
 		if (Mode == DriftBoostMode)
 		{
 			return GetScriptedDriftBoostInput(SimTime);
+		}
+		if (Mode == WallHitMode)
+		{
+			// Mode 3: accelerate, steer right briefly, then hold the wheel straight into the right-hand wall.
+			constexpr double WallSettleEnd = 1.0;
+			constexpr double WallTurnStart = 3.0;
+			constexpr double WallTurnEnd = 3.5;
+			constexpr double WallThrottleEnd = 5.5;
+			constexpr float WallTurnSteer = 0.5f;
+
+			FVehicleInputState WallScripted;
+			if (SimTime >= WallSettleEnd && SimTime < WallThrottleEnd)
+			{
+				WallScripted.Throttle = 1.f;
+				WallScripted.Steer = (SimTime >= WallTurnStart && SimTime < WallTurnEnd) ? WallTurnSteer : 0.f;
+			}
+			return WallScripted;
 		}
 
 		constexpr double SettleEnd = 1.0;
@@ -136,6 +158,12 @@ void UHoverMovementComponent::SetInput(const FVehicleInputState& InInput)
 	Input = InInput;
 }
 
+void UHoverMovementComponent::ApplyControlLoss(float Duration)
+{
+	// Game thread; the physics step also runs on the game thread (see header), so this is safe.
+	SimState.ControlLossTimeRemaining = FMath::Max(SimState.ControlLossTimeRemaining, Duration);
+}
+
 FHoverSimParams UHoverMovementComponent::BuildSimParams() const
 {
 	using namespace CosmicHotshots;
@@ -196,6 +224,9 @@ FHoverSimParams UHoverMovementComponent::BuildSimParams() const
 #if !UE_BUILD_SHIPPING
 	Params.bInfiniteBoost = VehicleCVars::InfiniteBoost.GetValueOnGameThread() != 0;
 #endif
+
+	Params.ControlLossGripMultiplier = Tuning->ControlLossGripMultiplier;
+	Params.ControlLossSteerMultiplier = Tuning->ControlLossSteerMultiplier;
 
 	Params.AirLevelStrength = Tuning->AirLevelStrength;
 	Params.AirLevelDamping = Tuning->AirLevelDamping;
@@ -274,8 +305,9 @@ void UHoverMovementComponent::AsyncPhysicsTickComponent(float DeltaTime, float S
 	FVehicleInputState StepInput = Input;
 	bool bBoostPressed = bBoostPressedLatch;
 #if !UE_BUILD_SHIPPING
+	// Scripted input drives the player's car only; test dummies just sit there.
 	const int32 ScriptedMode = CosmicHotshots::VehicleCVars::ScriptedInput.GetValueOnGameThread();
-	if (ScriptedMode != 0)
+	if (ScriptedMode != 0 && IsOwnerPlayerControlled())
 	{
 		StepInput = GetScriptedTestInput(ScriptedMode, ElapsedSimTime);
 		bBoostPressed = StepInput.bBoost && !bScriptedBoostWasHeld;
@@ -286,10 +318,16 @@ void UHoverMovementComponent::AsyncPhysicsTickComponent(float DeltaTime, float S
 	FHoverSim::Step(*Body, BuildSimParams(), StepInput, bBoostPressed, Trace, DeltaTime, SimState);
 	bBoostPressedLatch = false;
 
-	LogAndTestHooks(DeltaTime);
+	LogStep(DeltaTime);
 }
 
-void UHoverMovementComponent::LogAndTestHooks(float DeltaTime)
+bool UHoverMovementComponent::IsOwnerPlayerControlled() const
+{
+	const APawn* Pawn = Cast<APawn>(GetOwner());
+	return Pawn && Pawn->IsPlayerControlled();
+}
+
+void UHoverMovementComponent::LogStep(float DeltaTime)
 {
 	ElapsedSimTime += DeltaTime;
 
@@ -307,6 +345,34 @@ void UHoverMovementComponent::LogAndTestHooks(float DeltaTime)
 			SimState.Location.X, SimState.Location.Y, SimState.Location.Z,
 			SimState.bGrounded ? 1 : 0,
 			SimState.DriftBoost.bDrifting ? 1 : 0, SimState.DriftBoost.BoostCharge, SimState.DriftBoost.BoostTimeRemaining);
+	}
+#endif
+}
+
+void UHoverMovementComponent::RunTestHelpers()
+{
+#if !UE_BUILD_SHIPPING
+	using namespace CosmicHotshots;
+
+	// Test helpers belong to the player's car only (a test dummy has this component too).
+	if (!IsOwnerPlayerControlled())
+	{
+		return;
+	}
+
+	const float DummyDistance = VehicleCVars::SpawnDummyAhead.GetValueOnGameThread();
+	if (DummyDistance > 0.f && !bTestDummySpawned && ElapsedSimTime >= TestDummySpawnTime)
+	{
+		bTestDummySpawned = true;
+
+		const AActor* Owner = GetOwner();
+		const FVector Location = Owner->GetActorLocation()
+			+ Owner->GetActorForwardVector() * DummyDistance
+			+ Owner->GetActorRightVector() * VehicleCVars::DummyLateralOffset.GetValueOnGameThread();
+
+		FActorSpawnParameters SpawnParameters;
+		SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		GetWorld()->SpawnActor<AActor>(Owner->GetClass(), Location, Owner->GetActorRotation(), SpawnParameters);
 	}
 
 	const float ScreenshotTime = VehicleCVars::ScreenshotTime.GetValueOnGameThread();
@@ -329,6 +395,9 @@ void UHoverMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 #if !UE_BUILD_SHIPPING
+	// Run here, in the normal game tick: spawning actors or quitting from inside the physics step is not allowed.
+	RunTestHelpers();
+
 	if (CosmicHotshots::VehicleCVars::DebugDraw.GetValueOnGameThread() != 0)
 	{
 		DrawDebug();

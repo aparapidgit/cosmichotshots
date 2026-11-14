@@ -42,6 +42,14 @@ namespace
 		TEXT("Dev override of the speed lines strength, 0 (off) to 1 (full). Negative = use the player's setting."),
 		ECVF_Cheat);
 
+	// The shake's yaw wobbles at a different rate than its pitch, so it does not read as a circle.
+	constexpr float ShakeYawFrequencyRatio = 1.37f;
+
+	TAutoConsoleVariable<float> CVarShake(
+		TEXT("ch.Camera.Shake"), -1.f,
+		TEXT("Dev override of the camera shake strength, 0 (off) to 1 (full). Negative = use the player's setting."),
+		ECVF_Cheat);
+
 	TAutoConsoleVariable<float> CVarCameraLog(
 		TEXT("ch.Debug.CameraLog"), 0.f,
 		TEXT("Seconds between camera state lines in the log. 0 = off."),
@@ -118,6 +126,31 @@ void URaceCameraComponent::BeginPlay()
 	}
 
 	SnapBehindVehicle();
+}
+
+void URaceCameraComponent::AddImpactShake(float Strength)
+{
+	const float ClampedStrength = FMath::Clamp(Strength, 0.f, 1.f);
+
+	// A weaker hit never cuts a stronger shake that is still running.
+	if (ShakeTimeRemaining <= 0.f || ClampedStrength >= ShakeStrength)
+	{
+		ShakeStrength = ClampedStrength;
+		ShakeTimeRemaining = GetActiveTuning()->ImpactShakeDuration;
+	}
+}
+
+float URaceCameraComponent::GetShakeScale() const
+{
+	float Scale = ShakeScale;
+#if !UE_BUILD_SHIPPING
+	const float DevOverride = CVarShake.GetValueOnGameThread();
+	if (DevOverride >= 0.f)
+	{
+		Scale = DevOverride;
+	}
+#endif
+	return FMath::Clamp(Scale, 0.f, 1.f);
 }
 
 float URaceCameraComponent::GetSpeedLinesScale() const
@@ -264,6 +297,18 @@ void URaceCameraComponent::UpdateCamera(float DeltaTime, bool bSnap)
 	const FVector LookTarget = SmoothedPivot + LookDirection * ActiveTuning.LookAheadDistance;
 	FRotator CameraRotation = (LookTarget - CameraLocation).Rotation();
 	CameraRotation.Roll = 0.0;
+
+	// ----------------------------------------------------------------- Shake
+	// Impact shake: a small pitch and yaw wobble that fades out. Rotation only, so it cannot push the camera into a wall.
+	if (ShakeTimeRemaining > 0.f)
+	{
+		ShakeTimeRemaining = FMath::Max(ShakeTimeRemaining - DeltaTime, 0.f);
+		const float Fade = ShakeTimeRemaining / FMath::Max(ActiveTuning.ImpactShakeDuration, UE_KINDA_SMALL_NUMBER);
+		const float Amplitude = ActiveTuning.ImpactShakeMaxAngle * ShakeStrength * Fade * GetShakeScale();
+		const float Phase = (ActiveTuning.ImpactShakeDuration - ShakeTimeRemaining) * ActiveTuning.ImpactShakeFrequency * UE_TWO_PI;
+		CameraRotation.Pitch += Amplitude * FMath::Sin(Phase);
+		CameraRotation.Yaw += Amplitude * FMath::Sin(Phase * ShakeYawFrequencyRatio);
+	}
 
 	SetWorldLocationAndRotation(CameraLocation, CameraRotation);
 

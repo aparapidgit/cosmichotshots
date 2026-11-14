@@ -41,6 +41,70 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Body", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float BodyRestitution = 0.f;
 
+	/** How hard this car hits others. Scales the knock-back it GIVES in a collision. 1 = neutral. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Body", meta = (ClampMin = "0.1"))
+	float RamPower = 1.f;
+
+	/** How well this car resists hits. Divides the knock-back it RECEIVES in a collision. 1 = neutral. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Body", meta = (ClampMin = "0.1"))
+	float Stability = 1.f;
+
+	// -------------------------------------------------------------- Impact
+
+	/** Arcade bounce between two cars: fraction of the closing speed that is thrown back, before RamPower and Stability. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact", meta = (ClampMin = "0.0"))
+	float VehicleBounce = 0.6f;
+
+	/** A hit never changes the car's speed by more than this (cm/s), so no hit launches a car off the track. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact", meta = (ClampMin = "0.0"))
+	float MaxImpactSpeedChange = 1200.f;
+
+	/** Hits weaker than this (cm/s of closing speed) are ignored: no bounce, no feedback. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact", meta = (ClampMin = "0.0"))
+	float MinImpactSpeed = 80.f;
+
+	/** After a hit with the same car or wall, further hits with it are ignored for this long (s). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact", meta = (ClampMin = "0.0"))
+	float ImpactCooldown = 0.2f;
+
+	/** Received speed change (cm/s) from which a hit causes a wobble (brief loss of grip and steering). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact", meta = (ClampMin = "0.0"))
+	float WobbleThreshold = 300.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact", meta = (ClampMin = "0.0"))
+	float WobbleDuration = 0.4f;
+
+	/** Received speed change (cm/s) from which a hit causes a spin-out. Always short and readable. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact", meta = (ClampMin = "0.0"))
+	float SpinOutThreshold = 750.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact", meta = (ClampMin = "0.0"))
+	float SpinOutDuration = 0.8f;
+
+	/** Turn rate added by a spin-out (degrees per second). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact", meta = (ClampMin = "0.0"))
+	float SpinOutYawRate = 260.f;
+
+	/** Grip multiplier while wobbling or spinning out. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float ControlLossGripMultiplier = 0.35f;
+
+	/** Steering multiplier while wobbling or spinning out. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float ControlLossSteerMultiplier = 0.4f;
+
+	/** Bounce off a wall: fraction of the speed into the wall that is thrown back. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact", meta = (ClampMin = "0.0"))
+	float WallBounce = 0.35f;
+
+	/** Share of the speed ALONG the wall lost in a hard wall hit (0..1). Light scrapes lose proportionally less. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float WallSpeedLoss = 0.35f;
+
+	/** Speed into the wall (cm/s) that counts as a hard hit for WallSpeedLoss. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact", meta = (ClampMin = "1.0"))
+	float WallHardHitSpeed = 1500.f;
+
 	// --------------------------------------------------------------- Hover
 
 	/** Clearance between the underside of the body and the ground when resting. */

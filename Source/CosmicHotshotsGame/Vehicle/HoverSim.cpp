@@ -137,10 +137,22 @@ void FHoverSim::Step(
 		: 0.0;
 	const double SteerInput = FMath::Clamp(Input.Steer, -1.f, 1.f);
 
+	// --------------------------------------------------------- Control loss
+	// A strong hit (wobble, spin-out) briefly weakens grip and steering. A drift cannot survive it.
+	const bool bControlLoss = OutState.ControlLossTimeRemaining > 0.f;
+	OutState.ControlLossTimeRemaining = FMath::Max(OutState.ControlLossTimeRemaining - DeltaTime, 0.f);
+	const double ControlGripScale = bControlLoss ? Params.ControlLossGripMultiplier : 1.0;
+	const double ControlSteerScale = bControlLoss ? Params.ControlLossSteerMultiplier : 1.0;
+
 	// ---------------------------------------------------------- Drift state
 	FDriftBoostState& DriftBoost = OutState.DriftBoost;
 
-	if (!DriftBoost.bDrifting)
+	if (bControlLoss)
+	{
+		DriftBoost.bDrifting = false;
+		DriftBoost.DriftDirection = 0.f;
+	}
+	else if (!DriftBoost.bDrifting)
 	{
 		// A drift needs the button, the ground, enough speed and a steering direction to commit to.
 		if (Input.bDrift && bGrounded && ForwardSpeed >= Params.DriftMinSpeed && FMath::Abs(SteerInput) >= Params.DriftMinSteer)
@@ -235,7 +247,7 @@ void FHoverSim::Step(
 	// Drifting lowers it, so the car slides.
 	if (bGrounded)
 	{
-		const double Grip = DriftBoost.bDrifting ? Params.DriftGrip : Params.LateralGrip;
+		const double Grip = (DriftBoost.bDrifting ? Params.DriftGrip : Params.LateralGrip) * ControlGripScale;
 		Body.AddForce(Right * (-LateralSpeed * Grip * Mass));
 	}
 
@@ -254,7 +266,7 @@ void FHoverSim::Step(
 		YawRateScale = Params.DriftYawMultiplier;
 	}
 
-	double TargetYawRate = EffectiveSteer * YawRateScale * Params.MaxYawRate * Params.GetSteeringMultiplier(SpeedRatioForSteering);
+	double TargetYawRate = EffectiveSteer * YawRateScale * ControlSteerScale * Params.MaxYawRate * Params.GetSteeringMultiplier(SpeedRatioForSteering);
 	if (Params.bInvertSteeringInReverse && ForwardSpeed < -Params.BrakeToReverseSpeed)
 	{
 		TargetYawRate = -TargetYawRate;
@@ -264,7 +276,8 @@ void FHoverSim::Step(
 		TargetYawRate *= Params.AirSteeringMultiplier;
 	}
 
-	FVector AngularAcceleration = Up * ((TargetYawRate - YawRate) * Params.YawResponse);
+	// During control loss the car also holds its heading less firmly, so a spin-out can actually spin.
+	FVector AngularAcceleration = Up * ((TargetYawRate - YawRate) * Params.YawResponse * ControlSteerScale);
 
 	// ------------------------------------------------------------ Air control
 	// On the ground the hover points keep the car level with the surface. In the air nothing does,

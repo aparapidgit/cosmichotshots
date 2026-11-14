@@ -6,6 +6,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "Vehicle/VehicleImpactComponent.h"
 #include "RacePlayerController.generated.h"
 
 class UDrivingInputConfig;
@@ -22,8 +23,14 @@ public:
 
 protected:
 	virtual void SetupInputComponent() override;
+	virtual void OnPossess(APawn* InPawn) override;
+	virtual void OnUnPossess() override;
 
 private:
+	/** Controller rumble for this player's own impacts. */
+	UFUNCTION()
+	void HandleVehicleImpact(const FVehicleImpactInfo& ImpactInfo);
+
 	float GetAxisValue(const UInputAction* Action) const;
 	bool GetButtonValue(const UInputAction* Action) const;
 
