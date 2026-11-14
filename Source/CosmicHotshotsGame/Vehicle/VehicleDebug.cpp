@@ -40,6 +40,14 @@ namespace CosmicHotshots::VehicleCVars
 		TEXT("ch.Vehicle.LateralGrip"), UseAssetValue,
 		TEXT("Override sideways grip in 1/s. Negative = use the tuning data asset."), ECVF_Cheat);
 
+	TAutoConsoleVariable<float> DriftGrip(
+		TEXT("ch.Vehicle.DriftGrip"), UseAssetValue,
+		TEXT("Override sideways grip while drifting in 1/s. Negative = use the tuning data asset."), ECVF_Cheat);
+
+	TAutoConsoleVariable<int32> InfiniteBoost(
+		TEXT("ch.Vehicle.InfiniteBoost"), 0,
+		TEXT("1 = the boost meter is always full."), ECVF_Cheat);
+
 	TAutoConsoleVariable<int32> DebugDraw(
 		TEXT("ch.Debug.Vehicle"), 0,
 		TEXT("1 = draw hover traces and print vehicle state on screen."), ECVF_Cheat);
@@ -54,5 +62,5 @@ namespace CosmicHotshots::VehicleCVars
 
 	TAutoConsoleVariable<int32> ScriptedInput(
 		TEXT("ch.Test.ScriptedInput"), 0,
-		TEXT("Test helper: 1 = ignore the driver and feed a fixed input sequence."), ECVF_Cheat);
+		TEXT("Test helper: ignore the driver and feed a fixed input sequence. 1 = drive test, 2 = drift and boost test."), ECVF_Cheat);
 }

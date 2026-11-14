@@ -57,6 +57,15 @@ private:
 	FVehicleInputState Input;
 	FHoverSimState SimState;
 
+	/**
+	 * Set when the boost button goes down, cleared by the physics step that uses it.
+	 * A frame can have zero physics steps (high frame rates), so a short press must be remembered.
+	 */
+	bool bBoostPressedLatch = false;
+
+	/** Scripted test input only: was the scripted boost button held on the previous step. */
+	bool bScriptedBoostWasHeld = false;
+
 	/** Simulation time since this component started ticking physics. */
 	double ElapsedSimTime = 0.0;
 	double NextLogTime = 0.0;

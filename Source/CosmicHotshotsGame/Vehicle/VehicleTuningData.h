@@ -154,6 +154,65 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Grip", meta = (ClampMin = "0.0"))
 	float LateralGrip = 6.f;
 
+	// --------------------------------------------------------------- Drift
+
+	/** Sideways grip while drifting (1/s). Lower than LateralGrip so the car slides. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drift", meta = (ClampMin = "0.0"))
+	float DriftGrip = 2.f;
+
+	/** Turn rate multiplier while drifting. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drift", meta = (ClampMin = "0.0"))
+	float DriftYawMultiplier = 1.3f;
+
+	/**
+	 * A drift always turns in the direction it was started. This is the steering amount (0..1)
+	 * when the stick is pushed fully AGAINST the drift (widest line); fully into the drift gives 1.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drift", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float DriftMinTurn = 0.35f;
+
+	/** Minimum forward speed (km/h) to start a drift. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drift", meta = (ClampMin = "0.0"))
+	float DriftMinSpeedKmh = 60.f;
+
+	/** A drift ends when forward speed falls below this (km/h). Lower than the start speed to avoid flicker. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drift", meta = (ClampMin = "0.0"))
+	float DriftEndSpeedKmh = 40.f;
+
+	/** Minimum steering amount (0..1) needed to start a drift; its sign picks the drift direction. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drift", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float DriftMinSteer = 0.2f;
+
+	/** Boost charge gained per second of drifting at full slip (the boost meter goes from 0 to 1). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drift", meta = (ClampMin = "0.0"))
+	float DriftChargeRate = 0.35f;
+
+	/** Slip angle (degrees) at which a drift charges at the full rate. Smaller slides charge proportionally less. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drift", meta = (ClampMin = "0.1"))
+	float DriftFullChargeSlipAngle = 12.f;
+
+	// --------------------------------------------------------------- Boost
+
+	/** Boost meter spent by one boost (the meter goes from 0 to 1). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boost", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float BoostCost = 0.34f;
+
+	/** How long one boost lasts, in seconds. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boost", meta = (ClampMin = "0.0"))
+	float BoostDuration = 1.2f;
+
+	/** Instant forward speed added when a boost starts (cm/s). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boost", meta = (ClampMin = "0.0"))
+	float BoostImpulse = 350.f;
+
+	/** Top speed while boosting, in km/h. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boost", meta = (ClampMin = "1.0"))
+	float BoostMaxSpeedKmh = 225.f;
+
+	/** Acceleration multiplier while boosting. The boost pushes at full throttle even when the throttle is released. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boost", meta = (ClampMin = "0.0"))
+	float BoostAccelMultiplier = 1.8f;
+
 	// ----------------------------------------------------------------- Air
 
 	/** How strongly the car levels itself (pitch and roll) while airborne (1/s^2). */

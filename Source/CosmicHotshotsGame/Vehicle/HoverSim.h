@@ -58,6 +58,25 @@ struct FHoverSimParams
 	// Grip
 	float LateralGrip = 0.f;
 
+	// Drift (speeds in cm/s, angles in degrees)
+	float DriftGrip = 0.f;
+	float DriftYawMultiplier = 1.f;
+	float DriftMinTurn = 0.f;
+	float DriftMinSpeed = 0.f;
+	float DriftEndSpeed = 0.f;
+	float DriftMinSteer = 0.f;
+	float DriftChargeRate = 0.f;
+	float DriftFullChargeSlipAngle = 1.f;
+
+	// Boost (the meter goes from 0 to MaxBoostCharge)
+	float BoostCost = 0.f;
+	float BoostDuration = 0.f;
+	float BoostImpulse = 0.f;
+	float BoostMaxSpeed = 1.f;
+	float BoostAccelMultiplier = 1.f;
+	/** Dev only: keeps the boost meter full. */
+	bool bInfiniteBoost = false;
+
 	// Air
 	float AirLevelStrength = 0.f;
 	float AirLevelDamping = 0.f;
@@ -78,9 +97,31 @@ struct FHoverPointState
 	float Compression = 0.f;
 };
 
+/**
+ * Drift and boost state. Unlike the rest of FHoverSimState this is not just a report:
+ * it carries over from one physics step to the next.
+ */
+struct FDriftBoostState
+{
+	static constexpr float MaxBoostCharge = 1.f;
+
+	bool bDrifting = false;
+	/** +1 = drifting to the right, -1 = to the left. Locked when the drift starts. */
+	float DriftDirection = 0.f;
+	/** Boost meter, 0..MaxBoostCharge. Filled by drifting (and later by pickups), spent by boosting. */
+	float BoostCharge = 0.f;
+	/** Seconds left of the current boost. 0 = not boosting. */
+	float BoostTimeRemaining = 0.f;
+	/** Number of boosts started so far. Lets camera/VFX/audio notice a new boost. */
+	int32 BoostCount = 0;
+
+	bool IsBoosting() const { return BoostTimeRemaining > 0.f; }
+};
+
 /** Result of the last physics step. */
 struct FHoverSimState
 {
+	FDriftBoostState DriftBoost;
 	TArray<FHoverPointState, TInlineAllocator<8>> Points;
 	int32 PointsOverGround = 0;
 	bool bGrounded = false;
@@ -107,11 +148,16 @@ using FHoverTraceFunction = TFunctionRef<bool(const FVector& Start, const FVecto
 
 struct FHoverSim
 {
-	/** Applies hover, gravity, thrust, steering, grip and air control to the body for one physics step. */
+	/**
+	 * Applies hover, gravity, thrust, steering, grip, drift, boost and air control to the body
+	 * for one physics step.
+	 * @param bBoostPressed  true on the step that should start a boost (button press, not hold).
+	 */
 	static void Step(
 		Chaos::FRigidBodyHandle_Internal& Body,
 		const FHoverSimParams& Params,
 		const FVehicleInputState& Input,
+		bool bBoostPressed,
 		FHoverTraceFunction Trace,
 		float DeltaTime,
 		FHoverSimState& OutState);

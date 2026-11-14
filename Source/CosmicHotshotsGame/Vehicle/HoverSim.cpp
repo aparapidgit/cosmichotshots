@@ -28,6 +28,7 @@ void FHoverSim::Step(
 	Chaos::FRigidBodyHandle_Internal& Body,
 	const FHoverSimParams& Params,
 	const FVehicleInputState& Input,
+	bool bBoostPressed,
 	FHoverTraceFunction Trace,
 	float DeltaTime,
 	FHoverSimState& OutState)
@@ -131,15 +132,69 @@ void FHoverSim::Step(
 	const double ForwardSpeed = FVector::DotProduct(LinearVelocity, Forward);
 	const double LateralSpeed = FVector::DotProduct(LinearVelocity, Right);
 
-	const double Throttle = FMath::Clamp(Input.Throttle, 0.f, 1.f);
+	const double SlipAngle = LinearVelocity.SizeSquared() > FMath::Square(MinSpeedForSlipAngle)
+		? FMath::RadiansToDegrees(FMath::Atan2(LateralSpeed, FMath::Abs(ForwardSpeed)))
+		: 0.0;
+	const double SteerInput = FMath::Clamp(Input.Steer, -1.f, 1.f);
+
+	// ---------------------------------------------------------- Drift state
+	FDriftBoostState& DriftBoost = OutState.DriftBoost;
+
+	if (!DriftBoost.bDrifting)
+	{
+		// A drift needs the button, the ground, enough speed and a steering direction to commit to.
+		if (Input.bDrift && bGrounded && ForwardSpeed >= Params.DriftMinSpeed && FMath::Abs(SteerInput) >= Params.DriftMinSteer)
+		{
+			DriftBoost.bDrifting = true;
+			DriftBoost.DriftDirection = SteerInput > 0.0 ? 1.f : -1.f;
+		}
+	}
+	else if (!Input.bDrift || ForwardSpeed < Params.DriftEndSpeed)
+	{
+		DriftBoost.bDrifting = false;
+		DriftBoost.DriftDirection = 0.f;
+	}
+
+	// Drifting fills the boost meter; a bigger slide fills it faster. No charge in the air.
+	if (DriftBoost.bDrifting && bGrounded)
+	{
+		const double SlideAmount = FMath::Clamp(FMath::Abs(SlipAngle) / Params.DriftFullChargeSlipAngle, 0.0, 1.0);
+		DriftBoost.BoostCharge += static_cast<float>(Params.DriftChargeRate * SlideAmount * DeltaTime);
+	}
+	if (Params.bInfiniteBoost)
+	{
+		DriftBoost.BoostCharge = FDriftBoostState::MaxBoostCharge;
+	}
+	DriftBoost.BoostCharge = FMath::Clamp(DriftBoost.BoostCharge, 0.f, FDriftBoostState::MaxBoostCharge);
+
+	// ---------------------------------------------------------- Boost state
+	double BoostKickAcceleration = 0.0;
+	if (bBoostPressed && DriftBoost.BoostCharge >= Params.BoostCost)
+	{
+		DriftBoost.BoostCharge -= Params.BoostCost;
+		DriftBoost.BoostTimeRemaining = Params.BoostDuration;
+		++DriftBoost.BoostCount;
+
+		// The kick: an instant speed gain, delivered as one step of acceleration.
+		BoostKickAcceleration = DeltaTime > UE_SMALL_NUMBER ? Params.BoostImpulse / DeltaTime : 0.0;
+	}
+
+	const bool bBoosting = DriftBoost.IsBoosting();
+	DriftBoost.BoostTimeRemaining = FMath::Max(DriftBoost.BoostTimeRemaining - DeltaTime, 0.f);
+
+	// While boosting the car pushes at full throttle towards a higher top speed.
+	const double MaxSpeed = bBoosting ? FMath::Max(Params.BoostMaxSpeed, Params.MaxSpeed) : Params.MaxSpeed;
+	const double Acceleration = bBoosting ? Params.Acceleration * Params.BoostAccelMultiplier : Params.Acceleration;
+
+	const double Throttle = bBoosting ? 1.0 : FMath::Clamp(Input.Throttle, 0.f, 1.f);
 	const double Brake = FMath::Clamp(Input.Brake, 0.f, 1.f);
 
 	double DriveAcceleration = 0.0;
 
 	if (Throttle > 0.0)
 	{
-		const double SpeedRatio = FMath::Clamp(ForwardSpeed / Params.MaxSpeed, 0.0, 1.0);
-		DriveAcceleration += Params.Acceleration * Throttle * (1.0 - FMath::Pow(SpeedRatio, static_cast<double>(Params.AccelFalloffExponent)));
+		const double SpeedRatio = FMath::Clamp(ForwardSpeed / MaxSpeed, 0.0, 1.0);
+		DriveAcceleration += Acceleration * Throttle * (1.0 - FMath::Pow(SpeedRatio, static_cast<double>(Params.AccelFalloffExponent)));
 	}
 
 	if (Brake > 0.0)
@@ -167,19 +222,21 @@ void FHoverSim::Step(
 		{
 			DriveAcceleration -= ForwardSpeed * Params.CoastDrag;
 		}
-		if (ForwardSpeed > Params.MaxSpeed)
+		if (ForwardSpeed > MaxSpeed)
 		{
-			DriveAcceleration -= (ForwardSpeed - Params.MaxSpeed) * Params.OverspeedDrag;
+			DriveAcceleration -= (ForwardSpeed - MaxSpeed) * Params.OverspeedDrag;
 		}
 	}
 
-	Body.AddForce(Forward * (DriveAcceleration * Mass));
+	Body.AddForce(Forward * ((DriveAcceleration + BoostKickAcceleration) * Mass));
 
 	// ------------------------------------------------------------------- Grip
 	// Sideways velocity damping. This is what makes the hovercar hold a line instead of sliding.
+	// Drifting lowers it, so the car slides.
 	if (bGrounded)
 	{
-		Body.AddForce(Right * (-LateralSpeed * Params.LateralGrip * Mass));
+		const double Grip = DriftBoost.bDrifting ? Params.DriftGrip : Params.LateralGrip;
+		Body.AddForce(Right * (-LateralSpeed * Grip * Mass));
 	}
 
 	// --------------------------------------------------------------- Steering
@@ -187,7 +244,17 @@ void FHoverSim::Step(
 	const double YawRate = FVector::DotProduct(AngularVelocity, Up);
 	const float SpeedRatioForSteering = static_cast<float>(FMath::Abs(ForwardSpeed) / Params.MaxSpeed);
 
-	double TargetYawRate = FMath::Clamp(Input.Steer, -1.f, 1.f) * Params.MaxYawRate * Params.GetSteeringMultiplier(SpeedRatioForSteering);
+	// A drift always turns the way it was started: the stick only widens or tightens the line.
+	double EffectiveSteer = SteerInput;
+	double YawRateScale = 1.0;
+	if (DriftBoost.bDrifting)
+	{
+		const double IntoDrift = (SteerInput * DriftBoost.DriftDirection + 1.0) * 0.5; // 0 = against, 1 = fully into
+		EffectiveSteer = DriftBoost.DriftDirection * FMath::Lerp(static_cast<double>(Params.DriftMinTurn), 1.0, IntoDrift);
+		YawRateScale = Params.DriftYawMultiplier;
+	}
+
+	double TargetYawRate = EffectiveSteer * YawRateScale * Params.MaxYawRate * Params.GetSteeringMultiplier(SpeedRatioForSteering);
 	if (Params.bInvertSteeringInReverse && ForwardSpeed < -Params.BrakeToReverseSpeed)
 	{
 		TargetYawRate = -TargetYawRate;
@@ -215,8 +282,6 @@ void FHoverSim::Step(
 	OutState.ForwardSpeed = static_cast<float>(ForwardSpeed);
 	OutState.LateralSpeed = static_cast<float>(LateralSpeed);
 	OutState.YawRate = static_cast<float>(FMath::RadiansToDegrees(YawRate));
-	OutState.SlipAngle = LinearVelocity.SizeSquared() > FMath::Square(MinSpeedForSlipAngle)
-		? static_cast<float>(FMath::RadiansToDegrees(FMath::Atan2(LateralSpeed, FMath::Abs(ForwardSpeed))))
-		: 0.f;
+	OutState.SlipAngle = static_cast<float>(SlipAngle);
 	OutState.Yaw = static_cast<float>(Rotation.Rotator().Yaw);
 }

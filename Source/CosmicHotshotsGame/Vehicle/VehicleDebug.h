@@ -17,6 +17,10 @@ namespace CosmicHotshots::VehicleCVars
 	extern TAutoConsoleVariable<float> MaxYawRate;
 	extern TAutoConsoleVariable<float> YawResponse;
 	extern TAutoConsoleVariable<float> LateralGrip;
+	extern TAutoConsoleVariable<float> DriftGrip;
+
+	/** 1 = the boost meter is always full (tuning boosts without having to drift first). */
+	extern TAutoConsoleVariable<int32> InfiniteBoost;
 
 	/** 1 = draw hover traces and print vehicle state on screen. */
 	extern TAutoConsoleVariable<int32> DebugDraw;
@@ -27,7 +31,7 @@ namespace CosmicHotshots::VehicleCVars
 	/** Test helper: quit the game after this many seconds of simulation time. 0 = off. */
 	extern TAutoConsoleVariable<float> AutoQuitTime;
 
-	/** Test helper: 1 = ignore the driver and feed a fixed input sequence (frame-rate test). */
+	/** Test helper: ignore the driver and feed a fixed input sequence. 1 = drive test, 2 = drift and boost test. */
 	extern TAutoConsoleVariable<int32> ScriptedInput;
 
 	/** Returns the console override when it is set (>= 0), otherwise the data asset value. */

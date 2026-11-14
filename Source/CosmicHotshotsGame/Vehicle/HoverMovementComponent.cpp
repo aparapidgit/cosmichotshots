@@ -25,8 +25,16 @@ namespace
 	 * Fixed input sequence for the headless frame-rate test (ch.Test.ScriptedInput 1).
 	 * Driven by simulation time, so every frame rate gets exactly the same input.
 	 */
-	FVehicleInputState GetScriptedTestInput(double SimTime)
+	FVehicleInputState GetScriptedDriftBoostInput(double SimTime);
+
+	FVehicleInputState GetScriptedTestInput(int32 Mode, double SimTime)
 	{
+		constexpr int32 DriftBoostMode = 2;
+		if (Mode == DriftBoostMode)
+		{
+			return GetScriptedDriftBoostInput(SimTime);
+		}
+
 		constexpr double SettleEnd = 1.0;
 		constexpr double StraightEnd = 4.0;
 		constexpr double TurnRightEnd = 4.5;
@@ -47,6 +55,44 @@ namespace
 			{
 				Scripted.Steer = -TurnSteer;
 			}
+		}
+		return Scripted;
+	}
+
+	/**
+	 * Mode 2 (ch.Test.ScriptedInput 2): accelerate, drift left on a wide line, straighten up,
+	 * boost, then release the throttle while the boost is still running.
+	 */
+	FVehicleInputState GetScriptedDriftBoostInput(double SimTime)
+	{
+		constexpr double SettleEnd = 1.0;
+		constexpr double DriftStart = 4.0;
+		constexpr double DriftWidenStart = 4.1;
+		constexpr double DriftEnd = 4.6;
+		constexpr double StraightenEnd = 5.1;
+		constexpr double BoostPressStart = 5.3;
+		constexpr double BoostPressEnd = 5.4;
+		constexpr double ThrottleEnd = 6.0;
+		constexpr float DriftStartSteer = -0.3f;
+		constexpr float DriftWidenSteer = 1.f;
+		constexpr float StraightenSteer = 0.6f;
+
+		FVehicleInputState Scripted;
+		Scripted.Throttle = (SimTime >= SettleEnd && SimTime < ThrottleEnd) ? 1.f : 0.f;
+		Scripted.bDrift = SimTime >= DriftStart && SimTime < DriftEnd;
+		Scripted.bBoost = SimTime >= BoostPressStart && SimTime < BoostPressEnd;
+
+		if (SimTime >= DriftStart && SimTime < DriftWidenStart)
+		{
+			Scripted.Steer = DriftStartSteer;
+		}
+		else if (SimTime >= DriftWidenStart && SimTime < DriftEnd)
+		{
+			Scripted.Steer = DriftWidenSteer;
+		}
+		else if (SimTime >= DriftEnd && SimTime < StraightenEnd)
+		{
+			Scripted.Steer = StraightenSteer;
 		}
 		return Scripted;
 	}
@@ -82,6 +128,10 @@ void UHoverMovementComponent::SetTuning(const UVehicleTuningData* InTuning)
 
 void UHoverMovementComponent::SetInput(const FVehicleInputState& InInput)
 {
+	if (InInput.bBoost && !Input.bBoost)
+	{
+		bBoostPressedLatch = true;
+	}
 	Input = InInput;
 }
 
@@ -127,6 +177,24 @@ FHoverSimParams UHoverMovementComponent::BuildSimParams() const
 	}
 
 	Params.LateralGrip = VehicleCVars::Resolve(VehicleCVars::LateralGrip, Tuning->LateralGrip);
+
+	Params.DriftGrip = VehicleCVars::Resolve(VehicleCVars::DriftGrip, Tuning->DriftGrip);
+	Params.DriftYawMultiplier = Tuning->DriftYawMultiplier;
+	Params.DriftMinTurn = Tuning->DriftMinTurn;
+	Params.DriftMinSpeed = Tuning->DriftMinSpeedKmh * KmhToCmPerSecond;
+	Params.DriftEndSpeed = Tuning->DriftEndSpeedKmh * KmhToCmPerSecond;
+	Params.DriftMinSteer = Tuning->DriftMinSteer;
+	Params.DriftChargeRate = Tuning->DriftChargeRate;
+	Params.DriftFullChargeSlipAngle = Tuning->DriftFullChargeSlipAngle;
+
+	Params.BoostCost = Tuning->BoostCost;
+	Params.BoostDuration = Tuning->BoostDuration;
+	Params.BoostImpulse = Tuning->BoostImpulse;
+	Params.BoostMaxSpeed = Tuning->BoostMaxSpeedKmh * KmhToCmPerSecond;
+	Params.BoostAccelMultiplier = Tuning->BoostAccelMultiplier;
+#if !UE_BUILD_SHIPPING
+	Params.bInfiniteBoost = VehicleCVars::InfiniteBoost.GetValueOnGameThread() != 0;
+#endif
 
 	Params.AirLevelStrength = Tuning->AirLevelStrength;
 	Params.AirLevelDamping = Tuning->AirLevelDamping;
@@ -203,14 +271,19 @@ void UHoverMovementComponent::AsyncPhysicsTickComponent(float DeltaTime, float S
 	};
 
 	FVehicleInputState StepInput = Input;
+	bool bBoostPressed = bBoostPressedLatch;
 #if !UE_BUILD_SHIPPING
-	if (CosmicHotshots::VehicleCVars::ScriptedInput.GetValueOnGameThread() != 0)
+	const int32 ScriptedMode = CosmicHotshots::VehicleCVars::ScriptedInput.GetValueOnGameThread();
+	if (ScriptedMode != 0)
 	{
-		StepInput = GetScriptedTestInput(ElapsedSimTime);
+		StepInput = GetScriptedTestInput(ScriptedMode, ElapsedSimTime);
+		bBoostPressed = StepInput.bBoost && !bScriptedBoostWasHeld;
+		bScriptedBoostWasHeld = StepInput.bBoost;
 	}
 #endif
 
-	FHoverSim::Step(*Body, BuildSimParams(), StepInput, Trace, DeltaTime, SimState);
+	FHoverSim::Step(*Body, BuildSimParams(), StepInput, bBoostPressed, Trace, DeltaTime, SimState);
+	bBoostPressedLatch = false;
 
 	LogAndTestHooks(DeltaTime);
 }
@@ -227,11 +300,12 @@ void UHoverMovementComponent::LogAndTestHooks(float DeltaTime)
 	{
 		NextLogTime = ElapsedSimTime + LogInterval;
 		UE_LOG(LogCosmicVehicle, Log,
-			TEXT("VEHICLE %s t=%.3f dt=%.5f height=%.2f kmh=%.2f lateral=%.1f yawRate=%.2f yaw=%.2f slip=%.2f x=%.0f y=%.0f z=%.1f grounded=%d"),
+			TEXT("VEHICLE %s t=%.3f dt=%.5f height=%.2f kmh=%.2f lateral=%.1f yawRate=%.2f yaw=%.2f slip=%.2f x=%.0f y=%.0f z=%.1f grounded=%d drift=%d charge=%.3f boost=%.2f"),
 			*GetNameSafe(GetOwner()), ElapsedSimTime, SimState.DeltaTime, SimState.AverageHeight,
 			SimState.ForwardSpeed * CmPerSecondToKmh, SimState.LateralSpeed, SimState.YawRate, SimState.Yaw, SimState.SlipAngle,
 			SimState.Location.X, SimState.Location.Y, SimState.Location.Z,
-			SimState.bGrounded ? 1 : 0);
+			SimState.bGrounded ? 1 : 0,
+			SimState.DriftBoost.bDrifting ? 1 : 0, SimState.DriftBoost.BoostCharge, SimState.DriftBoost.BoostTimeRemaining);
 	}
 
 	const float AutoQuitTime = VehicleCVars::AutoQuitTime.GetValueOnGameThread();
@@ -275,11 +349,13 @@ void UHoverMovementComponent::DrawDebug() const
 	if (GEngine)
 	{
 		const FString Text = FString::Printf(
-			TEXT("%s\nSpeed: %.0f km/h   Sideways: %.0f cm/s   Slip angle: %.1f deg\nTurn rate: %.0f deg/s\nInput: throttle %.2f  brake %.2f  steer %.2f\nHeight: %.1f cm   Grounded: %s (%d points)\nCompression (cm):%s\nPhysics step: %.2f ms"),
+			TEXT("%s\nSpeed: %.0f km/h   Sideways: %.0f cm/s   Slip angle: %.1f deg\nTurn rate: %.0f deg/s\nInput: throttle %.2f  brake %.2f  steer %.2f  drift %d  boost %d\nDrift: %s   Boost meter: %.0f%%   Boost time left: %.2f s\nHeight: %.1f cm   Grounded: %s (%d points)\nCompression (cm):%s\nPhysics step: %.2f ms"),
 			*GetNameSafe(GetOwner()),
 			SimState.ForwardSpeed * CmPerSecondToKmh, SimState.LateralSpeed, SimState.SlipAngle,
 			SimState.YawRate,
-			Input.Throttle, Input.Brake, Input.Steer,
+			Input.Throttle, Input.Brake, Input.Steer, Input.bDrift ? 1 : 0, Input.bBoost ? 1 : 0,
+			!SimState.DriftBoost.bDrifting ? TEXT("no") : (SimState.DriftBoost.DriftDirection > 0.f ? TEXT("RIGHT") : TEXT("LEFT")),
+			SimState.DriftBoost.BoostCharge * 100.f, SimState.DriftBoost.BoostTimeRemaining,
 			SimState.AverageHeight,
 			SimState.bGrounded ? TEXT("yes") : TEXT("no"), SimState.PointsOverGround,
 			*Compressions,
