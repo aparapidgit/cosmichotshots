@@ -43,4 +43,8 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Actions")
 	TObjectPtr<UInputAction> UseItem;
+
+	/** Hold to look behind the car. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Actions")
+	TObjectPtr<UInputAction> LookBack;
 };

@@ -6,6 +6,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "PhysicsEngine/BodyInstance.h"
+#include "UnrealClient.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
 #include "Vehicle/VehicleDebug.h"
 #include "Vehicle/VehicleTuningData.h"
@@ -306,6 +307,13 @@ void UHoverMovementComponent::LogAndTestHooks(float DeltaTime)
 			SimState.Location.X, SimState.Location.Y, SimState.Location.Z,
 			SimState.bGrounded ? 1 : 0,
 			SimState.DriftBoost.bDrifting ? 1 : 0, SimState.DriftBoost.BoostCharge, SimState.DriftBoost.BoostTimeRemaining);
+	}
+
+	const float ScreenshotTime = VehicleCVars::ScreenshotTime.GetValueOnGameThread();
+	if (ScreenshotTime > 0.f && !bTestScreenshotTaken && ElapsedSimTime >= ScreenshotTime)
+	{
+		bTestScreenshotTaken = true;
+		FScreenshotRequest::RequestScreenshot(/*bInShowUI=*/true);
 	}
 
 	const float AutoQuitTime = VehicleCVars::AutoQuitTime.GetValueOnGameThread();

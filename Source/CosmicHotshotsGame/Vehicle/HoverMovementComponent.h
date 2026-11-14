@@ -63,6 +63,9 @@ private:
 	 */
 	bool bBoostPressedLatch = false;
 
+	/** Test helper (ch.Test.ScreenshotTime): the one screenshot has been requested. */
+	bool bTestScreenshotTaken = false;
+
 	/** Scripted test input only: was the scripted boost button held on the previous step. */
 	bool bScriptedBoostWasHeld = false;
 

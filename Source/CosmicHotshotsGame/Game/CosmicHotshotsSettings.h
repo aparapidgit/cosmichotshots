@@ -8,6 +8,7 @@
 #include "Engine/DeveloperSettings.h"
 #include "CosmicHotshotsSettings.generated.h"
 
+class UCameraTuningData;
 class UDrivingInputConfig;
 class UVehicleTuningData;
 
@@ -22,6 +23,10 @@ public:
 	/** Tuning used by vehicles that have no tuning asset of their own. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vehicles")
 	TSoftObjectPtr<UVehicleTuningData> DefaultVehicleTuning;
+
+	/** Tuning used by race cameras that have no tuning asset of their own. */
+	UPROPERTY(Config, EditAnywhere, Category = "Camera")
+	TSoftObjectPtr<UCameraTuningData> CameraTuning;
 
 	/** Input actions and bindings used while driving. */
 	UPROPERTY(Config, EditAnywhere, Category = "Input")

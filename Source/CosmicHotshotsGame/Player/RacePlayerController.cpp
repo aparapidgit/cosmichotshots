@@ -1,6 +1,7 @@
 #include "Player/RacePlayerController.h"
 
 #include "CosmicHotshotsGame.h"
+#include "Camera/RaceCameraComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
@@ -32,7 +33,7 @@ void ARacePlayerController::SetupInputComponent()
 	// Values are polled every frame in PlayerTick, so plain value bindings are enough.
 	const UInputAction* const Actions[] = {
 		DrivingInput->Throttle, DrivingInput->Brake, DrivingInput->Steer,
-		DrivingInput->Drift, DrivingInput->Boost, DrivingInput->UseItem,
+		DrivingInput->Drift, DrivingInput->Boost, DrivingInput->UseItem, DrivingInput->LookBack,
 	};
 	for (const UInputAction* Action : Actions)
 	{
@@ -80,6 +81,12 @@ void ARacePlayerController::PlayerTick(float DeltaTime)
 	Input.bUseItem = GetButtonValue(DrivingInput->UseItem);
 
 	Vehicle->SetInput(Input);
+
+	// Camera controls are not vehicle input: they go straight to this player's camera.
+	if (URaceCameraComponent* Camera = Vehicle->GetRaceCamera())
+	{
+		Camera->SetLookBack(GetButtonValue(DrivingInput->LookBack));
+	}
 }
 
 float ARacePlayerController::GetAxisValue(const UInputAction* Action) const

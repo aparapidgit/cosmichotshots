@@ -8,10 +8,9 @@
 #include "Vehicle/VehicleInputState.h"
 #include "RaceVehicle.generated.h"
 
-class UCameraComponent;
 class UHoverMovementComponent;
 class UPhysicalMaterial;
-class USpringArmComponent;
+class URaceCameraComponent;
 class UStaticMeshComponent;
 class UVehicleHullComponent;
 class UVehicleTuningData;
@@ -29,6 +28,7 @@ public:
 	void SetInput(const FVehicleInputState& InInput);
 
 	UHoverMovementComponent* GetHoverMovement() const { return HoverMovement; }
+	URaceCameraComponent* GetRaceCamera() const { return RaceCamera; }
 
 	/** This vehicle's tuning asset, else the project default (Project Settings > Cosmic Hotshots), else the class defaults. */
 	const UVehicleTuningData* GetActiveTuning() const;
@@ -53,12 +53,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle")
 	TObjectPtr<UHoverMovementComponent> HoverMovement;
 
-	/** TEMPORARY fixed chase camera so the prototype can be seen. Replaced by the real race camera (Phase 1 camera step). */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle|Temporary")
-	TObjectPtr<USpringArmComponent> TemporaryCameraArm;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle|Temporary")
-	TObjectPtr<UCameraComponent> TemporaryCamera;
+	/** Third-person chase camera of this vehicle's driver. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle")
+	TObjectPtr<URaceCameraComponent> RaceCamera;
 
 	/** Tuning asset for this vehicle. When empty, the project default tuning is used. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Vehicle")

@@ -1,11 +1,10 @@
 #include "Vehicle/RaceVehicle.h"
 
 #include "CosmicHotshotsGame.h"
-#include "Camera/CameraComponent.h"
+#include "Camera/RaceCameraComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Game/CosmicHotshotsSettings.h"
-#include "GameFramework/SpringArmComponent.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Vehicle/HoverMovementComponent.h"
@@ -18,12 +17,6 @@ namespace
 
 	// Engine cube is 100 cm per side.
 	constexpr double GreyBoxMeshSize = 100.0;
-
-	// TEMPORARY camera placement, removed with the temporary camera.
-	constexpr float TemporaryCameraDistance = 900.f;
-	const FVector TemporaryCameraOffset(0.0, 0.0, 250.0);
-	const FRotator TemporaryCameraPitch(-12.0, 0.0, 0.0);
-	constexpr float TemporaryCameraLagSpeed = 8.f;
 }
 
 ARaceVehicle::ARaceVehicle()
@@ -48,17 +41,8 @@ ARaceVehicle::ARaceVehicle()
 
 	HoverMovement = CreateDefaultSubobject<UHoverMovementComponent>(TEXT("HoverMovement"));
 
-	TemporaryCameraArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("TemporaryCameraArm"));
-	TemporaryCameraArm->SetupAttachment(Body);
-	TemporaryCameraArm->TargetArmLength = TemporaryCameraDistance;
-	TemporaryCameraArm->SocketOffset = TemporaryCameraOffset;
-	TemporaryCameraArm->SetRelativeRotation(TemporaryCameraPitch);
-	TemporaryCameraArm->bDoCollisionTest = false;
-	TemporaryCameraArm->bEnableCameraLag = true;
-	TemporaryCameraArm->CameraLagSpeed = TemporaryCameraLagSpeed;
-
-	TemporaryCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("TemporaryCamera"));
-	TemporaryCamera->SetupAttachment(TemporaryCameraArm, USpringArmComponent::SocketName);
+	RaceCamera = CreateDefaultSubobject<URaceCameraComponent>(TEXT("RaceCamera"));
+	RaceCamera->SetupAttachment(Body);
 }
 
 const UVehicleTuningData* ARaceVehicle::GetActiveTuning() const
