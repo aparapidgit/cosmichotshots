@@ -9,6 +9,7 @@
 #include "CosmicHotshotsSettings.generated.h"
 
 class UCameraTuningData;
+class UCharacterDefinition;
 class UDrivingInputConfig;
 class UVehicleTuningData;
 
@@ -20,7 +21,21 @@ class COSMICHOTSHOTSGAME_API UCosmicHotshotsSettings : public UDeveloperSettings
 public:
 	virtual FName GetCategoryName() const override { return FName(TEXT("Game")); }
 
-	/** Tuning used by vehicles that have no tuning asset of their own. */
+	/**
+	 * Finds a roster character by its position in Characters ("0", "1", ...) or by asset name
+	 * (case-insensitive, full name or the part after the last underscore). Null when not found.
+	 */
+	const UCharacterDefinition* FindCharacter(const FString& IndexOrName) const;
+
+	/** Playable characters, in roster order. Menus and dev commands read this list. */
+	UPROPERTY(Config, EditAnywhere, Category = "Characters")
+	TArray<TSoftObjectPtr<UCharacterDefinition>> Characters;
+
+	/** Character of vehicles that were not given one. Empty = plain base tuning. */
+	UPROPERTY(Config, EditAnywhere, Category = "Characters")
+	TSoftObjectPtr<UCharacterDefinition> DefaultCharacter;
+
+	/** Tuning used by vehicles whose character has no base tuning of its own. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vehicles")
 	TSoftObjectPtr<UVehicleTuningData> DefaultVehicleTuning;
 

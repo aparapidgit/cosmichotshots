@@ -21,6 +21,13 @@ public:
 	virtual void BeginPlay() override;
 	virtual void PlayerTick(float DeltaTime) override;
 
+	/**
+	 * Dev console command: "SetCharacter 1" or "SetCharacter TestHeavy".
+	 * Switches this player's vehicle to a character from the project roster.
+	 */
+	UFUNCTION(Exec)
+	void SetCharacter(const FString& IndexOrName);
+
 protected:
 	virtual void SetupInputComponent() override;
 	virtual void OnPossess(APawn* InPawn) override;

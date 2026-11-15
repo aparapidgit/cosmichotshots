@@ -8,6 +8,8 @@ Creates what is missing and never replaces what exists:
   /Game/Data/Vehicles/DA_VehicleTuning_Default   UVehicleTuningData with the class defaults
   /Game/Data/Camera/DA_CameraTuning_Default      UCameraTuningData with the class defaults
   /Game/VFX/M_SpeedLines               post-process material for speed lines (parameter "Intensity")
+  /Game/VFX/M_VehiclePlaceholder       material of the grey-box car (parameter "Colour")
+  /Game/Data/Characters/DA_Character_TestLight, DA_Character_TestHeavy   two placeholder test characters
 
 Running it again after new actions were added to this script only ADDS the missing
 actions, the bindings of those new actions, and empty references in DA_DrivingInput.
@@ -27,6 +29,18 @@ ACTIONS_DIR = "/Game/Input/Actions"
 VEHICLE_DATA_DIR = "/Game/Data/Vehicles"
 CAMERA_DATA_DIR = "/Game/Data/Camera"
 VFX_DIR = "/Game/VFX"
+CHARACTER_DATA_DIR = "/Game/Data/Characters"
+
+# (asset name, display name, colour RGBA, stat multipliers on top of the base tuning)
+# Two deliberately different placeholder characters for testing the stats system.
+TEST_CHARACTERS = [
+    ("DA_Character_TestLight", "Test Light", (0.05, 0.25, 1.0, 1.0),
+     {"max_speed": 1.05, "acceleration": 1.08, "steering": 1.08, "grip": 1.0,
+      "mass": 0.85, "ram_power": 0.8, "stability": 0.85}),
+    ("DA_Character_TestHeavy", "Test Heavy", (1.0, 0.8, 0.05, 1.0),
+     {"max_speed": 0.97, "acceleration": 0.93, "steering": 0.94, "grip": 1.0,
+      "mass": 1.25, "ram_power": 1.3, "stability": 1.25}),
+]
 
 # action name -> value type
 ACTIONS = {
@@ -198,6 +212,26 @@ def create_speed_lines_material(folder, name):
     return material, True
 
 
+def create_placeholder_material(folder, name):
+    """Plain surface material with a vector parameter "Colour" for the grey-box car."""
+    material, created = get_or_create(name, folder, unreal.Material, unreal.MaterialFactoryNew())
+    if not created:
+        return material, False
+
+    mel = unreal.MaterialEditingLibrary
+    colour = mel.create_material_expression(material, unreal.MaterialExpressionVectorParameter, -400, 0)
+    colour.set_editor_property("parameter_name", "Colour")
+    colour.set_editor_property("default_value", unreal.LinearColor(0.35, 0.35, 0.35, 1.0))
+    mel.connect_material_property(colour, "RGB", unreal.MaterialProperty.MP_BASE_COLOR)
+
+    roughness = mel.create_material_expression(material, unreal.MaterialExpressionConstant, -400, 250)
+    roughness.set_editor_property("r", 0.6)
+    mel.connect_material_property(roughness, "", unreal.MaterialProperty.MP_ROUGHNESS)
+
+    mel.recompile_material(material)
+    return material, True
+
+
 def main():
     changed = []
 
@@ -265,6 +299,29 @@ def main():
         unreal.log("Phase1Assets: set DA_CameraTuning_Default.speed_lines_material")
         if camera_tuning not in changed:
             changed.append(camera_tuning)
+
+    # --- placeholder car material (tinted with the character colour), referenced by the vehicle tuning
+    placeholder, created = create_placeholder_material(VFX_DIR, "M_VehiclePlaceholder")
+    if created:
+        changed.append(placeholder)
+    if tuning.get_editor_property("placeholder_material") is None:
+        tuning.set_editor_property("placeholder_material", placeholder)
+        unreal.log("Phase1Assets: set DA_VehicleTuning_Default.placeholder_material")
+        if tuning not in changed:
+            changed.append(tuning)
+
+    # --- test characters (placeholder stats for testing the stats system, not final designs)
+    for name, display_name, colour, modifiers in TEST_CHARACTERS:
+        character, created = get_or_create(name, CHARACTER_DATA_DIR, unreal.CharacterDefinition,
+                                           unreal.DataAssetFactory())
+        if created:
+            stats = unreal.VehicleStatModifiers()
+            for stat_name, value in modifiers.items():
+                stats.set_editor_property(stat_name, value)
+            character.set_editor_property("display_name", display_name)
+            character.set_editor_property("colour", unreal.LinearColor(*colour))
+            character.set_editor_property("stat_modifiers", stats)
+            changed.append(character)
 
     for asset in changed:
         eal.save_loaded_asset(asset, only_if_is_dirty=False)

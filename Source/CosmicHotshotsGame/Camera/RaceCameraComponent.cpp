@@ -12,7 +12,7 @@
 #include "Materials/MaterialInterface.h"
 #include "Vehicle/HoverMovementComponent.h"
 #include "Vehicle/RaceVehicle.h"
-#include "Vehicle/VehicleTuningData.h"
+#include "Vehicle/VehicleStatsComponent.h"
 
 namespace
 {
@@ -256,7 +256,7 @@ void URaceCameraComponent::UpdateCamera(float DeltaTime, bool bSnap)
 	bool bBoosting = false;
 	if (Vehicle)
 	{
-		const float TopSpeed = Vehicle->GetActiveTuning()->MaxSpeedKmh * KmhToCmPerSecond;
+		const float TopSpeed = Vehicle->GetStats()->GetMaxSpeedKmh() * KmhToCmPerSecond;
 		const float ForwardSpeed = FMath::Abs(FVector::DotProduct(Owner->GetVelocity(), Owner->GetActorForwardVector()));
 		SpeedRatio = TopSpeed > 0.f ? FMath::Clamp(ForwardSpeed / TopSpeed, 0.f, 1.f) : 0.f;
 		bBoosting = Vehicle->GetHoverMovement()->GetSimState().DriftBoost.IsBoosting();

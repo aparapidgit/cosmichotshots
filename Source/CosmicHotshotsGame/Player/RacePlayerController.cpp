@@ -2,6 +2,7 @@
 
 #include "CosmicHotshotsGame.h"
 #include "Camera/RaceCameraComponent.h"
+#include "Character/CharacterDefinition.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
@@ -60,6 +61,20 @@ void ARacePlayerController::BeginPlay()
 			InputSubsystem->AddMappingContext(DrivingInput->MappingContext, DrivingInput->MappingPriority);
 		}
 	}
+}
+
+void ARacePlayerController::SetCharacter(const FString& IndexOrName)
+{
+	ARaceVehicle* Vehicle = Cast<ARaceVehicle>(GetPawn());
+	const UCharacterDefinition* NewCharacter = GetDefault<UCosmicHotshotsSettings>()->FindCharacter(IndexOrName);
+	if (!Vehicle || !NewCharacter)
+	{
+		UE_LOG(LogCosmicVehicle, Warning, TEXT("SetCharacter: no vehicle, or no roster character matches '%s'."), *IndexOrName);
+		return;
+	}
+
+	Vehicle->SetCharacter(NewCharacter);
+	UE_LOG(LogCosmicVehicle, Log, TEXT("SetCharacter: %s is now %s."), *GetNameSafe(Vehicle), *GetNameSafe(NewCharacter));
 }
 
 void ARacePlayerController::OnPossess(APawn* InPawn)

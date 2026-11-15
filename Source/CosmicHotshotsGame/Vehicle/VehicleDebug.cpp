@@ -68,6 +68,14 @@ namespace CosmicHotshots::VehicleCVars
 		TEXT("ch.Test.DummyLateralOffset"), 0.f,
 		TEXT("Test helper: sideways offset of the dummy car in cm (positive = to the right)."), ECVF_Cheat);
 
+	TAutoConsoleVariable<int32> PlayerCharacter(
+		TEXT("ch.Test.PlayerCharacter"), -1,
+		TEXT("Test helper: roster index of the character given to the player's car at start. Negative = leave as is."), ECVF_Cheat);
+
+	TAutoConsoleVariable<int32> DummyCharacter(
+		TEXT("ch.Test.DummyCharacter"), -1,
+		TEXT("Test helper: roster index of the character given to the dummy car. Negative = project default."), ECVF_Cheat);
+
 	TAutoConsoleVariable<float> ScreenshotTime(
 		TEXT("ch.Test.ScreenshotTime"), 0.f,
 		TEXT("Test helper: take one screenshot at this simulation time in seconds. 0 = off."), ECVF_Cheat);

@@ -7,6 +7,7 @@
 #include "Vehicle/HoverMovementComponent.h"
 #include "Vehicle/RaceVehicle.h"
 #include "Vehicle/VehicleDebug.h"
+#include "Vehicle/VehicleStatsComponent.h"
 #include "Vehicle/VehicleTuningData.h"
 
 namespace
@@ -24,11 +25,12 @@ UVehicleImpactComponent::UVehicleImpactComponent()
 	PrimaryComponentTick.bCanEverTick = false;
 }
 
-void UVehicleImpactComponent::Initialize(UPrimitiveComponent* InBody, UHoverMovementComponent* InMovement, const UVehicleTuningData* InTuning)
+void UVehicleImpactComponent::Initialize(UPrimitiveComponent* InBody, UHoverMovementComponent* InMovement, const UVehicleStatsComponent* InStats)
 {
 	Body = InBody;
 	Movement = InMovement;
-	Tuning = InTuning;
+	Stats = InStats;
+	Tuning = InStats ? InStats->GetTuning() : nullptr;
 }
 
 void UVehicleImpactComponent::BeginPlay()
@@ -119,8 +121,8 @@ void UVehicleImpactComponent::HandleVehicleHit(ARaceVehicle& OtherVehicle, const
 
 	// Knock-back this car receives: the attacker's RamPower pushes it up, this car's Stability
 	// pulls it down, and the reduced mass makes the heavier car move less.
-	const float OtherRamPower = OtherVehicle.GetActiveTuning()->RamPower;
-	const float Impulse = Tuning->VehicleBounce * ClosingSpeed * ReducedMass * (OtherRamPower / FMath::Max(Tuning->Stability, UE_KINDA_SMALL_NUMBER));
+	const float OtherRamPower = OtherVehicle.GetStats()->GetRamPower();
+	const float Impulse = Tuning->VehicleBounce * ClosingSpeed * ReducedMass * (OtherRamPower / FMath::Max(Stats->GetStability(), UE_KINDA_SMALL_NUMBER));
 	const float SpeedChange = FMath::Min(Impulse / FMath::Max(SelfMass, UE_KINDA_SMALL_NUMBER), Tuning->MaxImpactSpeedChange);
 
 	Body->AddImpulse(Normal * SpeedChange, NAME_None, /*bVelChange=*/true);

@@ -37,6 +37,12 @@ namespace CosmicHotshots::VehicleCVars
 	/** Test helper: sideways offset of the dummy car (cm, positive = to the right). */
 	extern TAutoConsoleVariable<float> DummyLateralOffset;
 
+	/** Test helper: roster index of the character given to the player's car at start. Negative = leave as is. */
+	extern TAutoConsoleVariable<int32> PlayerCharacter;
+
+	/** Test helper: roster index of the character given to the dummy car. Negative = project default. */
+	extern TAutoConsoleVariable<int32> DummyCharacter;
+
 	/** Test helper: take one screenshot at this simulation time (seconds). 0 = off. */
 	extern TAutoConsoleVariable<float> ScreenshotTime;
 

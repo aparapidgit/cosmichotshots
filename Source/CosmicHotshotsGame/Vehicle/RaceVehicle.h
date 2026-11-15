@@ -9,11 +9,15 @@
 #include "Vehicle/VehicleInputState.h"
 #include "RaceVehicle.generated.h"
 
+class UCharacterDefinition;
 class UHoverMovementComponent;
+class UMaterialInstanceDynamic;
 class UPhysicalMaterial;
 class URaceCameraComponent;
+class UStaticMesh;
 class UStaticMeshComponent;
 class UVehicleHullComponent;
+class UVehicleStatsComponent;
 class UVehicleTuningData;
 
 UCLASS()
@@ -28,24 +32,42 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Vehicle")
 	void SetInput(const FVehicleInputState& InInput);
 
+	/** Makes this vehicle the given character's hovercar: tuning, stats, mass and look. Can be called at any time. */
+	UFUNCTION(BlueprintCallable, Category = "Vehicle")
+	void SetCharacter(const UCharacterDefinition* InCharacter);
+
+	/** This vehicle's character, else the project default character. Can be null (plain base tuning). */
+	const UCharacterDefinition* GetCharacter() const;
+
 	UHoverMovementComponent* GetHoverMovement() const { return HoverMovement; }
 	URaceCameraComponent* GetRaceCamera() const { return RaceCamera; }
 	UVehicleImpactComponent* GetImpact() const { return Impact; }
+	UVehicleStatsComponent* GetStats() const { return Stats; }
 
 	/** Mass of the vehicle's rigid body in kg. */
 	float GetBodyMass() const;
 
-	/** This vehicle's tuning asset, else the project default (Project Settings > Cosmic Hotshots), else the class defaults. */
+	/**
+	 * Base tuning in use: this vehicle's own tuning asset, else the character's, else the
+	 * project default (Project Settings > Cosmic Hotshots), else the class defaults.
+	 * For final values (with character modifiers) ask GetStats().
+	 */
 	const UVehicleTuningData* GetActiveTuning() const;
 
 	virtual void PostInitializeComponents() override;
 
 protected:
-	/** Sizes the collision hull and the grey-box mesh from the tuning asset. */
+	/** Resolves character and tuning and applies them to every part of the vehicle. */
+	void ApplyCharacter();
+
+	/** Sizes the collision hull from the tuning asset. */
 	void ApplyBodyShape(const UVehicleTuningData& ActiveTuning);
 
-	/** Applies mass, damping and surface material from the tuning asset. Runtime only. */
+	/** Applies mass, damping and surface material. Runtime only. */
 	void ApplyBodyPhysics(const UVehicleTuningData& ActiveTuning);
+
+	/** Hovercar mesh of the character, or the tinted grey-box placeholder. */
+	void ApplyAppearance(const UCharacterDefinition* ActiveCharacter);
 
 	/** Forwards impacts to this vehicle's own presentation (camera shake). */
 	UFUNCTION()
@@ -55,9 +77,13 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle")
 	TObjectPtr<UVehicleHullComponent> Body;
 
-	/** Grey-box visual (engine cube). No collision. */
+	/** Visual: the character's hovercar mesh, or a grey box. No collision. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle")
 	TObjectPtr<UStaticMeshComponent> VisualMesh;
+
+	/** Final values of this vehicle (base tuning x character modifiers). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle")
+	TObjectPtr<UVehicleStatsComponent> Stats;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle")
 	TObjectPtr<UHoverMovementComponent> HoverMovement;
@@ -70,11 +96,23 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle")
 	TObjectPtr<URaceCameraComponent> RaceCamera;
 
-	/** Tuning asset for this vehicle. When empty, the project default tuning is used. */
+	/** Character driving this vehicle. When empty, the project default character is used. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Vehicle")
+	TObjectPtr<const UCharacterDefinition> Character;
+
+	/** Tuning override for this one vehicle. When empty, the character's or the project default tuning is used. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Vehicle")
 	TObjectPtr<const UVehicleTuningData> Tuning;
 
 	/** Runtime surface material of the body (friction and restitution come from tuning). */
 	UPROPERTY(Transient)
 	TObjectPtr<UPhysicalMaterial> BodySurfaceMaterial;
+
+	/** Engine cube used while a character has no hovercar mesh. */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMesh> GreyBoxMesh;
+
+	/** Tintable material instance of the grey box. */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> GreyBoxMaterial;
 };

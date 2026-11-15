@@ -16,6 +16,7 @@
 
 class UHoverMovementComponent;
 class UPrimitiveComponent;
+class UVehicleStatsComponent;
 class UVehicleTuningData;
 
 UENUM(BlueprintType)
@@ -74,7 +75,7 @@ class COSMICHOTSHOTSGAME_API UVehicleImpactComponent : public UActorComponent
 public:
 	UVehicleImpactComponent();
 
-	void Initialize(UPrimitiveComponent* InBody, UHoverMovementComponent* InMovement, const UVehicleTuningData* InTuning);
+	void Initialize(UPrimitiveComponent* InBody, UHoverMovementComponent* InMovement, const UVehicleStatsComponent* InStats);
 
 	/** Fired for every impact that passed the minimum strength, after the response was applied. */
 	UPROPERTY(BlueprintAssignable, Category = "Impact")
@@ -105,6 +106,10 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<const UVehicleTuningData> Tuning;
+
+	/** Final RamPower, Stability and mass of this vehicle. */
+	UPROPERTY(Transient)
+	TObjectPtr<const UVehicleStatsComponent> Stats;
 
 	/** World time until which hits with an actor are ignored. */
 	TMap<TWeakObjectPtr<const AActor>, double> CooldownEndTimes;

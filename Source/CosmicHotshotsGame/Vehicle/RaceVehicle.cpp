@@ -2,14 +2,17 @@
 
 #include "CosmicHotshotsGame.h"
 #include "Camera/RaceCameraComponent.h"
+#include "Character/CharacterDefinition.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Game/CosmicHotshotsSettings.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Vehicle/HoverMovementComponent.h"
 #include "Vehicle/VehicleHullComponent.h"
 #include "Vehicle/VehicleImpactComponent.h"
+#include "Vehicle/VehicleStatsComponent.h"
 #include "Vehicle/VehicleTuningData.h"
 
 namespace
@@ -18,6 +21,9 @@ namespace
 
 	// Engine cube is 100 cm per side.
 	constexpr double GreyBoxMeshSize = 100.0;
+
+	// Vector parameter the placeholder material must expose (see UVehicleTuningData::PlaceholderMaterial).
+	const FName GreyBoxColourParameter(TEXT("Colour"));
 }
 
 ARaceVehicle::ARaceVehicle()
@@ -37,8 +43,11 @@ ARaceVehicle::ARaceVehicle()
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	if (CubeMesh.Succeeded())
 	{
-		VisualMesh->SetStaticMesh(CubeMesh.Object);
+		GreyBoxMesh = CubeMesh.Object;
+		VisualMesh->SetStaticMesh(GreyBoxMesh);
 	}
+
+	Stats = CreateDefaultSubobject<UVehicleStatsComponent>(TEXT("Stats"));
 
 	HoverMovement = CreateDefaultSubobject<UHoverMovementComponent>(TEXT("HoverMovement"));
 
@@ -58,11 +67,26 @@ void ARaceVehicle::HandleImpact(const FVehicleImpactInfo& ImpactInfo)
 	RaceCamera->AddImpactShake(ImpactInfo.Strength);
 }
 
+const UCharacterDefinition* ARaceVehicle::GetCharacter() const
+{
+	if (Character)
+	{
+		return Character;
+	}
+	return GetDefault<UCosmicHotshotsSettings>()->DefaultCharacter.LoadSynchronous();
+}
+
 const UVehicleTuningData* ARaceVehicle::GetActiveTuning() const
 {
 	if (Tuning)
 	{
 		return Tuning;
+	}
+
+	const UCharacterDefinition* ActiveCharacter = GetCharacter();
+	if (ActiveCharacter && ActiveCharacter->BaseTuning)
+	{
+		return ActiveCharacter->BaseTuning;
 	}
 	if (const UVehicleTuningData* ProjectDefault = GetDefault<UCosmicHotshotsSettings>()->DefaultVehicleTuning.LoadSynchronous())
 	{
@@ -75,21 +99,37 @@ void ARaceVehicle::PostInitializeComponents()
 {
 	Super::PostInitializeComponents();
 
+	HoverMovement->SetUpdatedBody(Body);
+	Impact->OnImpact.AddUniqueDynamic(this, &ARaceVehicle::HandleImpact);
+
+	ApplyCharacter();
+}
+
+void ARaceVehicle::SetCharacter(const UCharacterDefinition* InCharacter)
+{
+	Character = InCharacter;
+	ApplyCharacter();
+}
+
+void ARaceVehicle::ApplyCharacter()
+{
+	const UCharacterDefinition* ActiveCharacter = GetCharacter();
 	const UVehicleTuningData* ActiveTuning = GetActiveTuning();
+
+	Stats->SetBase(ActiveTuning, ActiveCharacter ? ActiveCharacter->StatModifiers : FVehicleStatModifiers());
+
 	ApplyBodyShape(*ActiveTuning);
 	ApplyBodyPhysics(*ActiveTuning);
+	ApplyAppearance(ActiveCharacter);
 
-	HoverMovement->SetUpdatedBody(Body);
 	HoverMovement->SetTuning(ActiveTuning);
-
-	Impact->Initialize(Body, HoverMovement, ActiveTuning);
-	Impact->OnImpact.AddUniqueDynamic(this, &ARaceVehicle::HandleImpact);
+	HoverMovement->SetStats(Stats);
+	Impact->Initialize(Body, HoverMovement, Stats);
 }
 
 void ARaceVehicle::ApplyBodyShape(const UVehicleTuningData& ActiveTuning)
 {
 	Body->SetHullSize(ActiveTuning.BodySize);
-	VisualMesh->SetRelativeScale3D(ActiveTuning.BodySize / GreyBoxMeshSize);
 }
 
 void ARaceVehicle::ApplyBodyPhysics(const UVehicleTuningData& ActiveTuning)
@@ -109,7 +149,38 @@ void ARaceVehicle::ApplyBodyPhysics(const UVehicleTuningData& ActiveTuning)
 
 	Body->SetAngularDamping(ActiveTuning.AngularDamping);
 	Body->SetLinearDamping(0.f);
-	Body->SetMassOverrideInKg(NAME_None, ActiveTuning.MassKg, true);
+	Body->SetMassOverrideInKg(NAME_None, Stats->GetMassKg(), true);
+}
+
+void ARaceVehicle::ApplyAppearance(const UCharacterDefinition* ActiveCharacter)
+{
+	UStaticMesh* CharacterMesh = ActiveCharacter ? ActiveCharacter->HovercarMesh.LoadSynchronous() : nullptr;
+
+	if (CharacterMesh)
+	{
+		// A real hovercar mesh is authored at its final size.
+		VisualMesh->SetStaticMesh(CharacterMesh);
+		VisualMesh->SetRelativeScale3D(FVector::OneVector);
+		return;
+	}
+
+	// Grey-box placeholder: a box of the body's size, tinted with the character colour.
+	VisualMesh->SetStaticMesh(GreyBoxMesh);
+	VisualMesh->SetRelativeScale3D(Stats->GetTuning()->BodySize / GreyBoxMeshSize);
+
+	const UVehicleTuningData* ActiveTuning = Stats->GetTuning();
+	UMaterialInterface* PlaceholderMaterial = ActiveTuning->PlaceholderMaterial.LoadSynchronous();
+	if (!PlaceholderMaterial)
+	{
+		return;
+	}
+
+	if (!GreyBoxMaterial || GreyBoxMaterial->Parent != PlaceholderMaterial)
+	{
+		GreyBoxMaterial = UMaterialInstanceDynamic::Create(PlaceholderMaterial, this);
+	}
+	VisualMesh->SetMaterial(0, GreyBoxMaterial);
+	GreyBoxMaterial->SetVectorParameterValue(GreyBoxColourParameter, ActiveCharacter ? ActiveCharacter->Colour : ActiveTuning->PlaceholderColour);
 }
 
 void ARaceVehicle::SetInput(const FVehicleInputState& InInput)

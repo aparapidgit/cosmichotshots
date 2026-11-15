@@ -5,11 +5,14 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Game/CosmicHotshotsSettings.h"
 #include "GameFramework/Pawn.h"
+#include "Vehicle/RaceVehicle.h"
 #include "PhysicsEngine/BodyInstance.h"
 #include "UnrealClient.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
 #include "Vehicle/VehicleDebug.h"
+#include "Vehicle/VehicleStatsComponent.h"
 #include "Vehicle/VehicleTuningData.h"
 
 namespace
@@ -149,6 +152,11 @@ void UHoverMovementComponent::SetTuning(const UVehicleTuningData* InTuning)
 	Tuning = InTuning;
 }
 
+void UHoverMovementComponent::SetStats(const UVehicleStatsComponent* InStats)
+{
+	Stats = InStats;
+}
+
 void UHoverMovementComponent::SetInput(const FVehicleInputState& InInput)
 {
 	if (InInput.bBoost && !Input.bBoost)
@@ -230,6 +238,19 @@ FHoverSimParams UHoverMovementComponent::BuildSimParams() const
 
 	Params.AirLevelStrength = Tuning->AirLevelStrength;
 	Params.AirLevelDamping = Tuning->AirLevelDamping;
+
+	// Character (and later passive/item) multipliers on top of the base tuning.
+	// Mass, RamPower and Stability are not driving values: the body and the impact component use them.
+	if (Stats)
+	{
+		const FVehicleStatModifiers& Modifiers = Stats->GetModifiers();
+		Params.MaxSpeed *= Modifiers.MaxSpeed;
+		Params.BoostMaxSpeed *= Modifiers.MaxSpeed;
+		Params.Acceleration *= Modifiers.Acceleration;
+		Params.MaxYawRate *= Modifiers.Steering;
+		Params.LateralGrip *= Modifiers.Grip;
+		Params.DriftGrip *= Modifiers.Grip;
+	}
 
 	return Params;
 }
@@ -360,6 +381,18 @@ void UHoverMovementComponent::RunTestHelpers()
 		return;
 	}
 
+	const UCosmicHotshotsSettings* Settings = GetDefault<UCosmicHotshotsSettings>();
+
+	const int32 PlayerCharacterIndex = VehicleCVars::PlayerCharacter.GetValueOnGameThread();
+	if (PlayerCharacterIndex >= 0 && !bTestCharacterApplied)
+	{
+		bTestCharacterApplied = true;
+		if (ARaceVehicle* Vehicle = Cast<ARaceVehicle>(GetOwner()))
+		{
+			Vehicle->SetCharacter(Settings->FindCharacter(FString::FromInt(PlayerCharacterIndex)));
+		}
+	}
+
 	const float DummyDistance = VehicleCVars::SpawnDummyAhead.GetValueOnGameThread();
 	if (DummyDistance > 0.f && !bTestDummySpawned && ElapsedSimTime >= TestDummySpawnTime)
 	{
@@ -372,7 +405,13 @@ void UHoverMovementComponent::RunTestHelpers()
 
 		FActorSpawnParameters SpawnParameters;
 		SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		GetWorld()->SpawnActor<AActor>(Owner->GetClass(), Location, Owner->GetActorRotation(), SpawnParameters);
+		AActor* Dummy = GetWorld()->SpawnActor<AActor>(Owner->GetClass(), Location, Owner->GetActorRotation(), SpawnParameters);
+
+		const int32 DummyCharacterIndex = VehicleCVars::DummyCharacter.GetValueOnGameThread();
+		if (ARaceVehicle* DummyVehicle = Cast<ARaceVehicle>(Dummy); DummyVehicle && DummyCharacterIndex >= 0)
+		{
+			DummyVehicle->SetCharacter(Settings->FindCharacter(FString::FromInt(DummyCharacterIndex)));
+		}
 	}
 
 	const float ScreenshotTime = VehicleCVars::ScreenshotTime.GetValueOnGameThread();

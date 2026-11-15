@@ -16,6 +16,7 @@
 #include "HoverMovementComponent.generated.h"
 
 class UPrimitiveComponent;
+class UVehicleStatsComponent;
 class UVehicleTuningData;
 
 UCLASS(ClassGroup = (Vehicle), meta = (BlueprintSpawnableComponent))
@@ -30,6 +31,9 @@ public:
 	void SetUpdatedBody(UPrimitiveComponent* InBody);
 
 	void SetTuning(const UVehicleTuningData* InTuning);
+
+	/** Source of the stat multipliers applied on top of the base tuning. Optional. */
+	void SetStats(const UVehicleStatsComponent* InStats);
 
 	/** Latest driver intent. Called on the game thread by the owning vehicle. */
 	void SetInput(const FVehicleInputState& InInput);
@@ -61,6 +65,9 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<const UVehicleTuningData> Tuning;
 
+	UPROPERTY(Transient)
+	TObjectPtr<const UVehicleStatsComponent> Stats;
+
 	FVehicleInputState Input;
 	FHoverSimState SimState;
 
@@ -71,6 +78,9 @@ private:
 	bool bBoostPressedLatch = false;
 
 	bool IsOwnerPlayerControlled() const;
+
+	/** Test helper (ch.Test.PlayerCharacter): the test character has been applied. */
+	bool bTestCharacterApplied = false;
 
 	/** Test helper (ch.Test.SpawnDummyAhead): the dummy car has been spawned. */
 	bool bTestDummySpawned = false;

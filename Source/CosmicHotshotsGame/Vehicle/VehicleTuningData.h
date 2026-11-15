@@ -7,6 +7,8 @@
 #include "Engine/DataAsset.h"
 #include "VehicleTuningData.generated.h"
 
+class UMaterialInterface;
+
 /**
  * Base tuning for a hovercar. Per-character differences are small modifiers
  * applied on top of this asset (see UCharacterDefinition, added later).
@@ -40,6 +42,17 @@ public:
 	/** Bounciness of the body. Arcade impulses are added by the impact system, so keep at zero. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Body", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float BodyRestitution = 0.f;
+
+	/**
+	 * Material of the grey-box placeholder car, used while a character has no hovercar mesh.
+	 * It must have a vector parameter named "Colour"; the vehicle sets it to the character colour.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Body")
+	TSoftObjectPtr<UMaterialInterface> PlaceholderMaterial;
+
+	/** Colour of the placeholder car when the vehicle has no character. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Body")
+	FLinearColor PlaceholderColour = FLinearColor(0.35f, 0.35f, 0.35f);
 
 	/** How hard this car hits others. Scales the knock-back it GIVES in a collision. 1 = neutral. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Body", meta = (ClampMin = "0.1"))
