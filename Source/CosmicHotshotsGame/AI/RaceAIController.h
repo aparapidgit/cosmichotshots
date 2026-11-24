@@ -17,6 +17,7 @@
 #include "Vehicle/VehicleStepInput.h"
 #include "RaceAIController.generated.h"
 
+class ARaceVehicle;
 class FTrackSplineTable;
 class UAIDifficultyData;
 class URaceTrackerComponent;
@@ -37,7 +38,14 @@ public:
 
 	const UAIDifficultyData* GetDifficulty() const;
 
+	/**
+	 * Stand by on a human's car without possessing it: the human keeps driving, and this driver takes the
+	 * car over the moment it has finished the race, so it does not sit on the track in everybody's way.
+	 */
+	void DriveAfterFinish(ARaceVehicle* Vehicle);
+
 	// IVehicleStepInputSource
+	virtual bool WantsControl(const FVehicleStepInputContext& Context) override;
 	virtual FVehicleInputState GetStepInput(const FVehicleStepInputContext& Context) override;
 
 	virtual void Tick(float DeltaSeconds) override;
@@ -49,6 +57,13 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+	/** Starts driving a vehicle: at once (possessed car), or only once it has finished the race (a human's car). */
+	void TakeVehicle(ARaceVehicle* Vehicle, bool bInOnlyAfterFinish);
+	void ReleaseVehicle();
+
+	/** Race state after the previous physics step; also finds this driver's id. Null when there is no race. */
+	const struct FRaceStepView* FindRaceView(float SimTime);
+
 	FRaceAIDriverParams BuildParams() const;
 
 	/** Adds, updates or removes this driver's rubber-band modifier. Called from the physics step. */
@@ -66,6 +81,11 @@ private:
 	TWeakObjectPtr<URaceTrackerComponent> Tracker;
 	TWeakObjectPtr<class UItemSystemComponent> ItemSystem;
 	int32 RacerId = INDEX_NONE;
+
+	TWeakObjectPtr<ARaceVehicle> DrivenVehicle;
+	/** Standing by on a human's car until it has finished. */
+	bool bOnlyAfterFinish = false;
+	bool bTookOver = false;
 
 	/** Owned by the physics step. */
 	FRaceAIDriverState DriverState;

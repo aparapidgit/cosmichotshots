@@ -10,6 +10,8 @@ Creates what is missing and never replaces what exists:
   /Game/Data/AI/DA_AIDifficulty_<Level>       Easy, Normal, Hard: parameter sets of the computer drivers
   /Game/Data/Items/DA_Item_Empty              the placeholder item (no effect)
   /Game/Data/Items/DA_ItemLootTable_Default   loot table: Empty for every rank band
+  /Game/Data/Tracks/DA_Track_TestTrack        the test track (map, default laps)
+Also fills the Description of the passive assets where it is still empty.
 
 The project settings (Config/DefaultGame.ini, section CosmicHotshotsSettings) point at
 DA_RaceTuning_Default (RaceTuning=) and list the characters in the roster (+Characters=).
@@ -25,6 +27,19 @@ PASSIVE_DATA_DIR = "/Game/Data/Passives"
 CHARACTER_DATA_DIR = "/Game/Data/Characters"
 AI_DATA_DIR = "/Game/Data/AI"
 ITEM_DATA_DIR = "/Game/Data/Items"
+TRACK_DATA_DIR = "/Game/Data/Tracks"
+
+# Passive descriptions for the character select screen (asset -> text). Written only where the asset's is empty.
+PASSIVE_DESCRIPTIONS = {
+    "DA_Passive_Spark": "While in last place: slightly higher top speed.",
+    "DA_Passive_Sulgwen": "Every overtake in a row raises top speed and acceleration for a short time.",
+    "DA_Passive_Freya": "After a close overtake, the overtaken car briefly loses a little speed.",
+    "DA_Passive_Killjoke": "When the leader pulls away from 2nd place: higher top speed until the gap shrinks.",
+    "DA_Passive_Glick": "In side contact: pushes rivals away harder and loses less speed.",
+    "DA_Passive_Wilqis": "When the car ahead is far away: a mild top speed bonus.",
+    "DA_Passive_Slot7": "Clean drifts in a row build a growing top speed bonus. A hit resets it.",
+    "DA_Passive_Slot8": "Near the front: recovers faster from hits and loses less speed.",
+}
 
 # (asset, display name, values that differ from the class defaults of UAIDifficultyData). Placeholders to tune.
 AI_DIFFICULTIES = [
@@ -131,6 +146,25 @@ def main():
             bands.append(band)
         loot_table.set_editor_property("bands", bands)
         unreal.EditorAssetLibrary.save_loaded_asset(loot_table)
+
+    # --- passive descriptions (only where empty, so edits made in the editor are kept)
+    for name, description in PASSIVE_DESCRIPTIONS.items():
+        path = "%s/%s" % (PASSIVE_DATA_DIR, name)
+        if not unreal.EditorAssetLibrary.does_asset_exist(path):
+            continue
+        passive = unreal.EditorAssetLibrary.load_asset(path)
+        if not str(passive.get_editor_property("description")):
+            passive.set_editor_property("description", description)
+            unreal.EditorAssetLibrary.save_loaded_asset(passive)
+            unreal.log("description set: %s" % path)
+
+    # --- tracks: only the test track for now
+    track, created = create_data_asset(TRACK_DATA_DIR, "DA_Track_TestTrack", unreal.TrackDefinition)
+    if created:
+        track.set_editor_property("display_name", "Test Track")
+        track.set_editor_property("map", unreal.SoftObjectPath("/Game/Maps/TestTrack.TestTrack"))
+        track.set_editor_property("default_laps", 3)
+        unreal.EditorAssetLibrary.save_loaded_asset(track)
 
 
 main()

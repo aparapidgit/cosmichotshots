@@ -158,6 +158,12 @@ private:
 	bool bStepAbilityWasHeld = false;
 	bool bStepUseItemWasHeld = false;
 
+	/** The race tracker, for the start lock. Null in levels without a race. */
+	TWeakObjectPtr<class URaceTrackerComponent> RaceTracker;
+	bool bRaceTrackerSearched = false;
+	/** This physics step is before the start of the race: no input is used. */
+	bool bRaceLocked = false;
+
 	/** Set when the human's use-item button goes down; cleared by the physics step that counts it. */
 	bool bUseItemPressedLatch = false;
 	/** This step's input came from a scripted test, so its use-item button is read like a step driver's. */

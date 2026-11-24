@@ -7,6 +7,8 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Game/CosmicHotshotsSettings.h"
+#include "Game/GameFlowSubsystem.h"
+#include "Engine/GameInstance.h"
 #include "GameFramework/GameModeBase.h"
 #include "PhysicsEngine/BodyInstance.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
@@ -98,6 +100,8 @@ void URaceTrackerComponent::BeginPlay()
 	Params.CloseOvertakeLateral = Tuning->CloseOvertakeLateral;
 	Params.GapBucketSize = Tuning->GapBucketSize;
 	Params.MinGapSpeed = Tuning->MinGapSpeed;
+	Params.FinishTimeout = Tuning->FinishTimeout;
+	CountdownSeconds = Tuning->CountdownSeconds;
 	BuildCheckpoints();
 
 	UE_LOG(LogCosmicRace, Log, TEXT("RACE_SETUP lapLength=%.0f laps=%d checkpoints=%d"),
@@ -248,6 +252,41 @@ void URaceTrackerComponent::AsyncPhysicsTickComponent(float DeltaTime, float Sim
 		return;
 	}
 
+	// First step: fix when the race starts. Console variables and the race setup are known by now.
+	if (!bStartDecided)
+	{
+		bStartDecided = true;
+		StepLength = DeltaTime;
+
+		const UGameInstance* GameInstance = GetWorld()->GetGameInstance();
+		const UGameFlowSubsystem* Flow = GameInstance ? GameInstance->GetSubsystem<UGameFlowSubsystem>() : nullptr;
+		bWaitingForSetup = Flow && Flow->IsWaitingForRaceSetup();
+		if (Flow && Flow->GetConfiguredLaps() > 0)
+		{
+			Params.NumLaps = Flow->GetConfiguredLaps();
+		}
+
+		const float CountdownOverride = CosmicHotshots::RaceCVars::Countdown.GetValueOnAnyThread();
+		const float Countdown = CountdownOverride >= 0.f ? CountdownOverride : CountdownSeconds;
+		CountdownStepsRemaining = DeltaTime > 0.f ? FMath::RoundToInt32(Countdown / DeltaTime) : 0;
+		bHasCountdown = CountdownStepsRemaining > 0;
+		RaceStartSimTime = SimTime + CountdownStepsRemaining * DeltaTime;
+	}
+
+	if (bWaitingForSetup)
+	{
+		FScopeLock ScopeLock(&Lock);
+		PublishedCountdown = -1.f;
+		return;
+	}
+	if (CountdownStepsRemaining > 0)
+	{
+		--CountdownStepsRemaining;
+		FScopeLock ScopeLock(&Lock);
+		PublishedCountdown = (CountdownStepsRemaining + 1) * DeltaTime;
+		return;
+	}
+
 #if !UE_BUILD_SHIPPING
 	const int32 LapsOverride = CosmicHotshots::RaceCVars::Laps.GetValueOnAnyThread();
 	if (LapsOverride > 0)
@@ -312,6 +351,7 @@ void URaceTrackerComponent::AsyncPhysicsTickComponent(float DeltaTime, float Sim
 	PublishedSnapshot.RaceTime = StepState.RaceTime;
 	PublishedSnapshot.NumLaps = Params.NumLaps;
 	PublishedSnapshot.bRaceFinished = StepState.bRaceFinished;
+	PublishedCountdown = 0.f;
 	PublishedEvents.Append(StepEvents);
 	bSnapshotChanged = true;
 }
@@ -361,6 +401,26 @@ void URaceTrackerComponent::LogStep(const TArray<FRaceEvent>& Events)
 		}
 	}
 #endif
+}
+
+bool URaceTrackerComponent::IsRaceStartedAt(float SimTime) const
+{
+	if (!Track.IsValid())
+	{
+		return true; // no race in this level: nothing to wait for
+	}
+	if (!bStartDecided || bWaitingForSetup)
+	{
+		return false;
+	}
+	// Half a step of tolerance: the engine's SimTime is a running sum.
+	return !bHasCountdown || SimTime >= RaceStartSimTime - 0.5f * StepLength;
+}
+
+float URaceTrackerComponent::GetCountdownRemaining() const
+{
+	FScopeLock ScopeLock(&Lock);
+	return PublishedCountdown;
 }
 
 const FRaceStepView& URaceTrackerComponent::GetViewForStep(float SimTime) const

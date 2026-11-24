@@ -47,6 +47,11 @@
 # Item boxes (placeholder item "Empty": ITEM PICKUP / ROLL_DONE / USE / REPLACE / RESPAWN lines; scripted mode 9 presses use every 8 s):
 #   -Seconds 135 -LogInterval 20 -TimeoutSeconds 900 -ExtraCmds "ch.Test.ScriptedInput 9,ch.Race.Laps 2,ch.Race.AIOpponents 7,ch.Test.PlayerGridSlot 7"
 #   "ch.Race.ItemBoxes 0" removes the boxes. Loot table check: -ExecOnly "ch.Item.PrintLoot 8"
+# Race flow (countdown, race end timer, character select -> race -> results):
+#   Countdown:        -Countdown 3 -Seconds 8 -LogInterval 0.5 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Race.AIOpponents 3"   (nobody moves before t=3)
+#   Whole flow:       -SkipMenus 0 -Countdown 3 -Seconds 100 -LogInterval 30 -TimeoutSeconds 900 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Race.Laps 1,ch.Test.AutoSelectCharacter 4"
+#                     (FLOW lines; the picked character races 7 computer drivers; RESULT lines for all 8)
+#   By default the script passes "ch.Race.Countdown 0" and "ch.Flow.SkipMenus 1": tests start at once, without the character select.
 # Race lines (LogCosmicRace) carry the race time of the physics step and must match at every frame rate too.
 # The Unreal editor must be closed.
 
@@ -57,10 +62,14 @@ param(
     [string]$Map = "/Game/Maps/TestTrack",
     [float]$LogInterval = 0.25,
     [string]$ExtraCmds = "",
-    # Console COMMANDS (not variables) to run once the game is up, e.g. "ch.Item.PrintLoot 8". Not passed through -DPCVars.
+    # Console COMMANDS (not variables) to run once the game is up, e.g. "ch.Item.PrintLoot 8". Run after the console variables.
     [string]$ExecOnly = "",
     # Wall-clock limit for the whole run; a full-lap test needs more than the default.
-    [int]$TimeoutSeconds = 240
+    [int]$TimeoutSeconds = 240,
+    # Seconds of start countdown. Tests start at once unless they ask for it.
+    [float]$Countdown = 0,
+    # 1 = no character select: the race is set up by the ch.Race.* console variables.
+    [int]$SkipMenus = 1
 )
 
 $project = Join-Path (Split-Path $PSScriptRoot -Parent) "CosmicHotshotsGame.uproject"
@@ -71,6 +80,10 @@ if (Test-Path $log) { Remove-Item $log }
 
 # p.MaxPhysicsDeltaTime: the engine default (1/30 s) would slow the game down at exactly 30 FPS.
 $cmds = "ch.Debug.VehicleLog $LogInterval,ch.Test.AutoQuitTime $Seconds,p.MaxPhysicsDeltaTime 0.05"
+# -ExecCmds run after the map has loaded but before the first frame: console variables set here are not
+# there yet when the player's car spawns, but they are in the first tick of the race, where the game
+# mode sets up the grid (AI, test bots, test dummy) and the race tracker fixes the start.
+$cmds = "$cmds,ch.Race.Countdown $Countdown,ch.Flow.SkipMenus $SkipMenus"
 if ($ExtraCmds) { $cmds = "$cmds,$ExtraCmds" }
 if ($ExecOnly) { $cmds = "$cmds,$ExecOnly" }
 
@@ -79,13 +92,6 @@ $arguments = @(
     "`"$project`"", $Map, "-game", "-nullrhi", "-unattended", "-nosplash", "-nosound",
     "-benchmark", "-fps=$Fps", "-ExecCmds=`"$cmds`"", "-abslog=`"$log`""
 )
-# -ExecCmds only run at the END of the first frame, after that frame's physics steps (how many
-# depends on the frame rate). The test console variables are also set at startup through
-# -DPCVars, so helpers that act in the first frame (test dummy) see them at every frame rate.
-if ($ExtraCmds) {
-    $startupCvars = ($ExtraCmds -split ',' | ForEach-Object { $_.Trim() -replace '\s+', '=' }) -join ','
-    $arguments += "-DPCVars=`"$startupCvars`""
-}
 
 $process = Start-Process -FilePath $exe -ArgumentList $arguments -PassThru -WindowStyle Hidden
 if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {

@@ -35,6 +35,12 @@ class IVehicleStepInputSource
 public:
 	virtual ~IVehicleStepInputSource() = default;
 
+	/**
+	 * Does this driver take the car in this step? A driver that only steps in at some point (the computer
+	 * driver that takes a human's car after the finish) answers false until then, and the human's input is used.
+	 */
+	virtual bool WantsControl(const FVehicleStepInputContext& Context) { return true; }
+
 	/** The driver's input for this physics step. */
 	virtual FVehicleInputState GetStepInput(const FVehicleStepInputContext& Context) = 0;
 };

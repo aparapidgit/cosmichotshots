@@ -77,6 +77,21 @@ void ARaceAIController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
 
+	TakeVehicle(Cast<ARaceVehicle>(InPawn), /*bInOnlyAfterFinish=*/false);
+}
+
+void ARaceAIController::DriveAfterFinish(ARaceVehicle* Vehicle)
+{
+	TakeVehicle(Vehicle, /*bInOnlyAfterFinish=*/true);
+}
+
+void ARaceAIController::TakeVehicle(ARaceVehicle* Vehicle, bool bInOnlyAfterFinish)
+{
+	DrivenVehicle = Vehicle;
+	bOnlyAfterFinish = bInOnlyAfterFinish;
+	bTookOver = false;
+	RacerId = INDEX_NONE;
+
 	Track = ATrackSplineActor::FindTable(GetWorld());
 
 	// Where the item boxes are along the track. They exist by now: boxes are placed before the drivers.
@@ -97,29 +112,64 @@ void ARaceAIController::OnPossess(APawn* InPawn)
 			Spot.LateralOffset = Projection.LateralOffset;
 		}
 	}
-	if (const ARaceVehicle* Vehicle = Cast<ARaceVehicle>(InPawn))
+	if (Vehicle)
 	{
 		Vehicle->GetHoverMovement()->SetStepInputSource(this);
 	}
 }
 
-void ARaceAIController::OnUnPossess()
+void ARaceAIController::ReleaseVehicle()
 {
-	if (const ARaceVehicle* Vehicle = Cast<ARaceVehicle>(GetPawn()))
+	if (const ARaceVehicle* Vehicle = DrivenVehicle.Get())
 	{
 		Vehicle->GetHoverMovement()->ClearStepInputSource(this);
 	}
+	DrivenVehicle = nullptr;
 	RacerId = INDEX_NONE;
+}
+
+bool ARaceAIController::WantsControl(const FVehicleStepInputContext& Context)
+{
+	if (!bOnlyAfterFinish || bTookOver)
+	{
+		return true;
+	}
+
+	// Standing by on a human's car: take over once that car has finished the race (state after the previous step).
+	const FRaceStepView* Race = FindRaceView(Context.SimTime);
+	bTookOver = Race && Race->Racers.IsValidIndex(RacerId) && Race->Racers[RacerId].bFinished;
+	return bTookOver;
+}
+
+const FRaceStepView* ARaceAIController::FindRaceView(float SimTime)
+{
+	if (!Tracker.IsValid())
+	{
+		const ARaceGameState* RaceState = GetWorld() ? GetWorld()->GetGameState<ARaceGameState>() : nullptr;
+		Tracker = RaceState ? RaceState->GetTracker() : nullptr;
+	}
+	const URaceTrackerComponent* RaceTracker = Tracker.Get();
+	if (!RaceTracker)
+	{
+		return nullptr;
+	}
+	if (RacerId == INDEX_NONE)
+	{
+		RacerId = RaceTracker->FindRacerId(DrivenVehicle.Get());
+	}
+	return &RaceTracker->GetViewForStep(SimTime);
+}
+
+void ARaceAIController::OnUnPossess()
+{
+	ReleaseVehicle();
 
 	Super::OnUnPossess();
 }
 
 void ARaceAIController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	if (const ARaceVehicle* Vehicle = Cast<ARaceVehicle>(GetPawn()))
-	{
-		Vehicle->GetHoverMovement()->ClearStepInputSource(this);
-	}
+	ReleaseVehicle();
 
 	Super::EndPlay(EndPlayReason);
 }
@@ -127,7 +177,7 @@ void ARaceAIController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 FRaceAIDriverParams ARaceAIController::BuildParams() const
 {
 	const UAIDifficultyData* Data = GetDifficulty();
-	const ARaceVehicle* Vehicle = Cast<ARaceVehicle>(GetPawn());
+	const ARaceVehicle* Vehicle = DrivenVehicle.Get();
 
 	FRaceAIDriverParams Params;
 	if (Vehicle)
@@ -178,7 +228,7 @@ FVehicleInputState ARaceAIController::GetStepInput(const FVehicleStepInputContex
 	{
 		if (RacerId == INDEX_NONE)
 		{
-			RacerId = RaceTracker->FindRacerId(Cast<ARaceVehicle>(GetPawn()));
+			RacerId = RaceTracker->FindRacerId(DrivenVehicle.Get());
 		}
 		const FRaceStepView& Race = RaceTracker->GetViewForStep(Context.SimTime);
 		for (int32 Id = 0; Id < Race.Racers.Num(); ++Id)
@@ -294,8 +344,8 @@ void ARaceAIController::Tick(float DeltaSeconds)
 
 void ARaceAIController::DrawDebug() const
 {
-	const APawn* Vehicle = GetPawn();
-	if (!Vehicle)
+	const ARaceVehicle* Vehicle = DrivenVehicle.Get();
+	if (!Vehicle || (bOnlyAfterFinish && !bTookOver))
 	{
 		return;
 	}

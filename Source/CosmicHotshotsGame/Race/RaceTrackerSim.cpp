@@ -285,27 +285,35 @@ namespace
 		}
 	}
 
-	void CheckRaceFinished(FRaceTrackerState& State, TArray<FRaceEvent>& OutEvents)
+	void CheckRaceFinished(FRaceTrackerState& State, const FRaceTrackerParams& Params, TArray<FRaceEvent>& OutEvents)
 	{
 		if (State.bRaceFinished || State.Racers.IsEmpty())
 		{
 			return;
 		}
 
+		// The race ends when everybody has finished, or a while after the first human crossed the line
+		// (the first driver, in a race without humans), so slower cars still get a real time and place.
 		bool bAnyHuman = false;
-		bool bAllHumansFinished = true;
 		bool bAllFinished = true;
 		for (const FRacerSimState& Racer : State.Racers)
 		{
-			bAllFinished &= Racer.bFinished;
-			if (Racer.bHuman)
+			bAnyHuman |= Racer.bHuman;
+			bAllFinished &= Racer.bFinished || !Racer.bInitialised;
+		}
+		if (State.FirstFinishTime < 0.0)
+		{
+			for (const FRacerSimState& Racer : State.Racers)
 			{
-				bAnyHuman = true;
-				bAllHumansFinished &= Racer.bFinished;
+				if (Racer.bFinished && (Racer.bHuman || !bAnyHuman) && (State.FirstFinishTime < 0.0 || Racer.FinishTime < State.FirstFinishTime))
+				{
+					State.FirstFinishTime = Racer.FinishTime;
+				}
 			}
 		}
 
-		if (bAnyHuman ? bAllHumansFinished : bAllFinished)
+		const bool bTimedOut = State.FirstFinishTime >= 0.0 && State.RaceTime - State.FirstFinishTime >= Params.FinishTimeout;
+		if (bAllFinished || bTimedOut)
 		{
 			State.bRaceFinished = true;
 			FRaceEvent& Event = OutEvents.AddDefaulted_GetRef();
@@ -375,7 +383,7 @@ void FRaceTrackerSim::Step(FRaceTrackerState& State, const FTrackSplineTable& Tr
 	UpdateRanking(State);
 	UpdateGaps(State, Params, LapLength);
 	DetectOvertakes(State, Params, StepSeconds, OutEvents);
-	CheckRaceFinished(State, OutEvents);
+	CheckRaceFinished(State, Params, OutEvents);
 
 	++State.StepCount;
 }

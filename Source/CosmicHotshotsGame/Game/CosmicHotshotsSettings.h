@@ -13,6 +13,7 @@ class UCameraTuningData;
 class UCharacterDefinition;
 class UDrivingInputConfig;
 class UItemLootTable;
+class UTrackDefinition;
 class URaceTuningData;
 class UVehicleTuningData;
 
@@ -36,6 +37,12 @@ public:
 	/** Difficulty by index, clamped to the list; the class defaults of UAIDifficultyData when the list is empty. */
 	const UAIDifficultyData* GetAIDifficulty(int32 Index) const;
 
+	/**
+	 * The characters a race can use, in roster order: every roster entry that has a passive. Entries
+	 * without one are the dev test characters. Menus and the AI grid both use this list.
+	 */
+	TArray<const UCharacterDefinition*> GetRaceCharacters() const;
+
 	/** Playable characters, in roster order. Menus and dev commands read this list. */
 	UPROPERTY(Config, EditAnywhere, Category = "Characters")
 	TArray<TSoftObjectPtr<UCharacterDefinition>> Characters;
@@ -55,6 +62,10 @@ public:
 	/** Race rules (laps, overtake detection, gaps). Empty = class defaults of URaceTuningData. */
 	UPROPERTY(Config, EditAnywhere, Category = "Race")
 	TSoftObjectPtr<URaceTuningData> RaceTuning;
+
+	/** Race tracks, in menu order. The first one is used until a track select screen exists. */
+	UPROPERTY(Config, EditAnywhere, Category = "Race")
+	TArray<TSoftObjectPtr<UTrackDefinition>> Tracks;
 
 	/** Which items the item boxes give. Empty = boxes give nothing. */
 	UPROPERTY(Config, EditAnywhere, Category = "Items")

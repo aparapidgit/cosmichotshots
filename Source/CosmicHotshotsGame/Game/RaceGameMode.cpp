@@ -9,6 +9,8 @@
 #include "EngineUtils.h"
 #include "Engine/World.h"
 #include "Game/CosmicHotshotsSettings.h"
+#include "Game/GameFlowSubsystem.h"
+#include "Engine/GameInstance.h"
 #include "Item/ItemBox.h"
 #include "GameFramework/PlayerController.h"
 #include "Vehicle/VehicleDebug.h"
@@ -22,6 +24,9 @@
 namespace
 {
 	const FName ItemBoxPlaceholderTag(TEXT("ItemBox"));
+
+	/** Seeds of the drivers that take over human cars after the finish (grid slots use 0..7). */
+	constexpr int32 FinishDriverSeedBase = 100;
 }
 
 ARaceGameMode::ARaceGameMode()
@@ -49,13 +54,40 @@ void ARaceGameMode::Tick(float DeltaSeconds)
 	}
 	bGridFilled = true;
 
-	ReplaceItemBoxPlaceholders();
+	// The race setup: from the menus (UGameFlowSubsystem) when there is one, else from the dev console variables.
+	const UGameFlowSubsystem* Flow = GetGameInstance() ? GetGameInstance()->GetSubsystem<UGameFlowSubsystem>() : nullptr;
+	const bool bHasConfig = Flow && Flow->HasRaceConfig();
+	const bool bWaitingForSetup = Flow && Flow->IsWaitingForRaceSetup();
+
+	const bool bItemBoxes = !bWaitingForSetup
+		&& (bHasConfig ? Flow->GetRaceConfig().bItemBoxes : CosmicHotshots::RaceCVars::ItemBoxes.GetValueOnGameThread() != 0);
+	ReplaceItemBoxPlaceholders(bItemBoxes);
+	if (bWaitingForSetup)
+	{
+		// The player is still choosing (character select): the grid stays empty and nothing starts.
+		return;
+	}
+
+	// Characters the humans picked.
+	if (bHasConfig)
+	{
+		int32 PlayerIndex = 0;
+		for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It, ++PlayerIndex)
+		{
+			ARaceVehicle* HumanVehicle = It->IsValid() ? Cast<ARaceVehicle>((*It)->GetPawn()) : nullptr;
+			const TArray<TObjectPtr<const UCharacterDefinition>>& Picked = Flow->GetRaceConfig().HumanCharacters;
+			if (HumanVehicle && Picked.IsValidIndex(PlayerIndex) && Picked[PlayerIndex])
+			{
+				HumanVehicle->SetCharacter(Picked[PlayerIndex]);
+			}
+		}
+	}
 
 #if !UE_BUILD_SHIPPING
 	{
 
 		// Test helper (ch.Test.PlayerCharacter): here, before the first physics step, when the console
-		// variable was set at startup (-DPCVars). Set later, the vehicle's own test helper applies it.
+		// variable was set before the race started (-ExecCmds). Set later, the vehicle's own test helper applies it.
 		const int32 PlayerCharacterIndex = CosmicHotshots::VehicleCVars::PlayerCharacter.GetValueOnGameThread();
 		const APlayerController* FirstPlayer = GetWorld()->GetFirstPlayerController();
 		if (ARaceVehicle* PlayerVehicle = FirstPlayer ? Cast<ARaceVehicle>(FirstPlayer->GetPawn()) : nullptr; PlayerVehicle && PlayerCharacterIndex >= 0)
@@ -82,6 +114,7 @@ void ARaceGameMode::Tick(float DeltaSeconds)
 	SpawnTestBots();
 #endif
 	SpawnAIOpponents();
+	SpawnFinishDrivers();
 #if !UE_BUILD_SHIPPING
 	SpawnTestDummy();
 #endif
@@ -171,7 +204,7 @@ void ARaceGameMode::SpawnTestBots()
 #endif
 }
 
-void ARaceGameMode::ReplaceItemBoxPlaceholders()
+void ARaceGameMode::ReplaceItemBoxPlaceholders(bool bItemBoxes)
 {
 	// The test track marks its item box spots with plain cubes tagged "ItemBox" (and the map has them with
 	// collision on). They never stay in a race: each one is hidden and, when item boxes are on, a real
@@ -187,7 +220,6 @@ void ARaceGameMode::ReplaceItemBoxPlaceholders()
 	// Fixed order, so box indices are the same in every run.
 	Placeholders.Sort([](const AActor& A, const AActor& B) { return A.GetName() < B.GetName(); });
 
-	const bool bItemBoxes = CosmicHotshots::RaceCVars::ItemBoxes.GetValueOnGameThread() != 0;
 	for (AActor* Placeholder : Placeholders)
 	{
 		Placeholder->SetActorEnableCollision(false);
@@ -232,14 +264,17 @@ void ARaceGameMode::SpawnAIOpponents()
 {
 	using namespace CosmicHotshots;
 
-	const int32 Requested = FMath::Clamp(RaceCVars::AIOpponents.GetValueOnGameThread(), 0, UCosmicHotshotsSettings::MaxGridSize - 1);
+	const UGameFlowSubsystem* Flow = GetGameInstance() ? GetGameInstance()->GetSubsystem<UGameFlowSubsystem>() : nullptr;
+	const bool bHasConfig = Flow && Flow->HasRaceConfig();
+	const int32 Requested = FMath::Clamp(bHasConfig ? Flow->GetRaceConfig().NumAIOpponents : RaceCVars::AIOpponents.GetValueOnGameThread(),
+		0, UCosmicHotshotsSettings::MaxGridSize - 1);
 	if (Requested == 0)
 	{
 		return;
 	}
 
 	const UCosmicHotshotsSettings* Settings = GetDefault<UCosmicHotshotsSettings>();
-	const int32 DifficultyIndex = RaceCVars::AIDifficulty.GetValueOnGameThread();
+	const int32 DifficultyIndex = bHasConfig ? Flow->GetRaceConfig().AIDifficulty : RaceCVars::AIDifficulty.GetValueOnGameThread();
 	const UAIDifficultyData* Difficulty = Settings->GetAIDifficulty(DifficultyIndex >= 0 ? DifficultyIndex : Settings->DefaultAIDifficulty);
 
 	// Characters are unique per race: skip the ones the humans drive. Roster entries without a passive are
@@ -294,6 +329,29 @@ void ARaceGameMode::SpawnAIOpponents()
 		// The grid slot is the seed: the same slot always gets the same driver.
 		Driver->Configure(Difficulty, Slot);
 		Driver->Possess(Vehicle);
+	}
+}
+
+void ARaceGameMode::SpawnFinishDrivers()
+{
+	// One computer driver stands by on every human's car and takes it over when that car has finished,
+	// so it keeps driving instead of sitting on the track (developer decision).
+	const UCosmicHotshotsSettings* Settings = GetDefault<UCosmicHotshotsSettings>();
+	const UAIDifficultyData* Difficulty = Settings->GetAIDifficulty(Settings->DefaultAIDifficulty);
+
+	FActorSpawnParameters SpawnParameters;
+	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	int32 PlayerIndex = 0;
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It, ++PlayerIndex)
+	{
+		ARaceVehicle* HumanVehicle = It->IsValid() ? Cast<ARaceVehicle>((*It)->GetPawn()) : nullptr;
+		ARaceAIController* Driver = HumanVehicle ? GetWorld()->SpawnActor<ARaceAIController>(SpawnParameters) : nullptr;
+		if (Driver)
+		{
+			Driver->Configure(Difficulty, FinishDriverSeedBase + PlayerIndex);
+			Driver->DriveAfterFinish(HumanVehicle);
+		}
 	}
 }
 

@@ -82,7 +82,7 @@ namespace CosmicHotshots::VehicleCVars
 
 	TAutoConsoleVariable<int32> TestBots(
 		TEXT("ch.Test.Bots"), 0,
-		TEXT("Test helper: number of test bots (0..7) on the free grid slots, driving the test autopilot. Set at startup (-DPCVars) or before the level loads."), ECVF_Cheat);
+		TEXT("Test helper: number of test bots (0..7) on the free grid slots, driving the test autopilot. Read in the first tick of the race (set it with -ExecCmds or in the console before the level starts)."), ECVF_Cheat);
 
 	TAutoConsoleVariable<float> DummyYawOffset(
 		TEXT("ch.Test.DummyYawOffset"), 0.f,
@@ -94,7 +94,7 @@ namespace CosmicHotshots::VehicleCVars
 
 	TAutoConsoleVariable<int32> PlayerGridSlot(
 		TEXT("ch.Test.PlayerGridSlot"), -1,
-		TEXT("Test helper: grid slot (0 = pole) the first player starts from. Negative = normal order. Set at startup (-DPCVars)."), ECVF_Cheat);
+		TEXT("Test helper: grid slot (0 = pole) the first player starts from. Negative = normal order. Read in the first tick of the race (-ExecCmds, or the console before the level starts)."), ECVF_Cheat);
 
 	TAutoConsoleVariable<float> TestSpeedModifier(
 		TEXT("ch.Test.SpeedModifier"), 0.f,

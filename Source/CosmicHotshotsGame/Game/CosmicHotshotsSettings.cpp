@@ -3,6 +3,20 @@
 #include "AI/AIDifficultyData.h"
 #include "Character/CharacterDefinition.h"
 
+TArray<const UCharacterDefinition*> UCosmicHotshotsSettings::GetRaceCharacters() const
+{
+	TArray<const UCharacterDefinition*> Result;
+	for (const TSoftObjectPtr<UCharacterDefinition>& Entry : Characters)
+	{
+		const UCharacterDefinition* Character = Entry.LoadSynchronous();
+		if (Character && Character->PassiveDefinition)
+		{
+			Result.Add(Character);
+		}
+	}
+	return Result;
+}
+
 const UAIDifficultyData* UCosmicHotshotsSettings::GetAIDifficulty(int32 Index) const
 {
 	if (AIDifficulties.IsEmpty())

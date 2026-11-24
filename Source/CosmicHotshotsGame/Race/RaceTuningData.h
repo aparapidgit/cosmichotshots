@@ -72,4 +72,12 @@ public:
 	/** Seconds a computer driver keeps a ready item before using it. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Items", meta = (ClampMin = "0.0"))
 	float AIItemUseDelay = 1.f;
+
+	/** Seconds of countdown (3-2-1) before the cars may move. 0 = the race starts at once. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Race", meta = (ClampMin = "0.0"))
+	float CountdownSeconds = 3.f;
+
+	/** Seconds after the first human finishes before the race ends for everybody still driving. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Race", meta = (ClampMin = "0.0"))
+	float FinishTimeout = 30.f;
 };

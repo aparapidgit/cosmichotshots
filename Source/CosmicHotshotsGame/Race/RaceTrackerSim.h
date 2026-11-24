@@ -32,6 +32,8 @@ struct FRaceTrackerParams
 	float CloseOvertakeLateral = 600.f;
 	float GapBucketSize = 1000.f;
 	float MinGapSpeed = 1000.f;
+	/** Seconds after the first human finishes before the race ends for everybody still driving. */
+	float FinishTimeout = 30.f;
 
 	/** Distance of each checkpoint in the lap, ascending; [0] = 0 = start/finish line. */
 	TArray<float> CheckpointDistances;
@@ -130,6 +132,8 @@ struct FRaceTrackerState
 	double RaceTime = 0.0;
 	int32 FinishedCount = 0;
 	bool bRaceFinished = false;
+	/** Race time when the first human finished (the first driver, in a race without humans); negative = nobody yet. */
+	double FirstFinishTime = -1.0;
 	FRaceGap LeaderToSecondGap;
 };
 

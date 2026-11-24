@@ -56,7 +56,7 @@ namespace CosmicHotshots::VehicleCVars
 	/** Test helper: roster index of the character every test bot gets. Negative = one after the other through the roster. */
 	extern TAutoConsoleVariable<int32> BotCharacter;
 
-	/** Test helper: grid slot (0 = pole) the first player starts from. Negative = normal order. Set at startup (-DPCVars). */
+	/** Test helper: grid slot (0 = pole) the first player starts from. Negative = normal order. Read in the first tick of the race (-ExecCmds, or the console before the level starts). */
 	extern TAutoConsoleVariable<int32> PlayerGridSlot;
 
 	/** Test helper: max-speed multiplier added to the player's modifier stack at 2 s (1 s fade in, 2 s hold, 1 s fade out). 0 = off. */

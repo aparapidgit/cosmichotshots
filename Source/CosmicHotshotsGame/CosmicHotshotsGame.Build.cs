@@ -9,7 +9,7 @@ public class CosmicHotshotsGame : ModuleRules
 		// Lets code include headers by module-relative path, e.g. "Vehicle/RaceVehicle.h".
 		PublicIncludePaths.Add(ModuleDirectory);
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "Chaos", "PhysicsCore", "DeveloperSettings" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "Chaos", "PhysicsCore", "DeveloperSettings", "UMG", "Slate", "SlateCore" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
 	}

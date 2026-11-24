@@ -40,7 +40,10 @@ private:
 	int32 GetPlayerGridSlot(int32 PlayerIndex, int32 NumSlots) const;
 
 	/** Hides the test track's placeholder cubes for item boxes and, when item boxes are on, puts real AItemBox actors there. */
-	void ReplaceItemBoxPlaceholders();
+	void ReplaceItemBoxPlaceholders(bool bItemBoxes);
+
+	/** Puts a stand-by computer driver on every human's car; it takes over when that car has finished the race. */
+	void SpawnFinishDrivers();
 
 	/** Grid slots (at most MaxGridSize) the human players did not take, front to back. */
 	TArray<int32> FindFreeGridSlots();

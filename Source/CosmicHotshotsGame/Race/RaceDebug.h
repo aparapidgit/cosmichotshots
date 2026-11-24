@@ -37,3 +37,12 @@ namespace CosmicHotshots::RaceCVars
 	/** 1 = item boxes are in the race, 0 = no boxes (stands in for the race setup option). Read when the race starts. */
 	extern TAutoConsoleVariable<int32> ItemBoxes;
 }
+
+namespace CosmicHotshots::RaceCVars
+{
+	/** Seconds of start countdown. Negative = use the race tuning asset. 0 = start at once (headless tests). */
+	extern TAutoConsoleVariable<float> Countdown;
+
+	/** 1 = no character select: the race starts straight away with the dev console variables (headless tests). */
+	extern TAutoConsoleVariable<int32> SkipMenus;
+}

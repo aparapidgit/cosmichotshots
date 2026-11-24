@@ -1,5 +1,19 @@
 #include "Player/RacePlayerController.h"
 
+#include "CosmicHotshotsGame.h"
+#include "Game/CosmicHotshotsSettings.h"
+#include "Game/GameFlowSubsystem.h"
+#include "HAL/IConsoleManager.h"
+#include "Misc/App.h"
+#include "UI/RaceScreens.h"
+
+namespace
+{
+	TAutoConsoleVariable<int32> CVarAutoSelectCharacter(
+		TEXT("ch.Test.AutoSelectCharacter"), -1,
+		TEXT("Test helper: on the character select, pick this roster index at once (no screen). Negative = off."), ECVF_Cheat);
+}
+
 #include "Item/ItemLootTable.h"
 #include "Item/ItemSystemComponent.h"
 #include "Race/RaceGameState.h"
@@ -131,9 +145,78 @@ void ARacePlayerController::HandleVehicleImpact(const FVehicleImpactInfo& Impact
 	}
 }
 
+void ARacePlayerController::SetUpRaceScreens()
+{
+	if (!IsLocalController())
+	{
+		return;
+	}
+
+	ARaceGameState* RaceState = GetWorld()->GetGameState<ARaceGameState>();
+	UGameFlowSubsystem* Flow = GetGameInstance() ? GetGameInstance()->GetSubsystem<UGameFlowSubsystem>() : nullptr;
+	if (!RaceState || !Flow)
+	{
+		return;
+	}
+	RaceState->OnRaceFinished.AddUniqueDynamic(this, &ARacePlayerController::HandleRaceFinished);
+
+	const bool bWaitingForSetup = Flow->IsWaitingForRaceSetup();
+
+#if !UE_BUILD_SHIPPING
+	// Test helper (ch.Test.AutoSelectCharacter): pick a character without the screen, the way the button does.
+	const int32 AutoSelect = CVarAutoSelectCharacter.GetValueOnGameThread();
+	if (bWaitingForSetup && AutoSelect >= 0)
+	{
+		const UCharacterDefinition* PickedCharacter = GetDefault<UCosmicHotshotsSettings>()->FindCharacter(FString::FromInt(AutoSelect));
+		UE_LOG(LogCosmicRace, Log, TEXT("FLOW character select: auto-selected %s"), *GetNameSafe(PickedCharacter));
+		CosmicHotshots::RaceUI::StartRaceWithCharacter(this, PickedCharacter);
+		return;
+	}
+#endif
+
+	// No window (headless test): nothing to draw on.
+	if (!FApp::CanEverRender())
+	{
+		return;
+	}
+
+	OverlayWidget = CreateWidget<URaceOverlayWidget>(this, URaceOverlayWidget::StaticClass());
+	OverlayWidget->AddToViewport();
+
+	if (bWaitingForSetup)
+	{
+		ScreenWidget = CreateWidget<UCharacterSelectWidget>(this, UCharacterSelectWidget::StaticClass());
+		ScreenWidget->ShowScreen();
+	}
+}
+
+void ARacePlayerController::HandleRaceFinished(const FRaceResultData& Results)
+{
+	if (UGameFlowSubsystem* Flow = GetGameInstance() ? GetGameInstance()->GetSubsystem<UGameFlowSubsystem>() : nullptr)
+	{
+		Flow->SetLastResults(Results);
+	}
+	UE_LOG(LogCosmicRace, Log, TEXT("FLOW results: %d drivers, race time %.3f"), Results.Entries.Num(), Results.RaceTime);
+
+	if (!FApp::CanEverRender())
+	{
+		return;
+	}
+	URaceResultsWidget* ResultsWidget = CreateWidget<URaceResultsWidget>(this, URaceResultsWidget::StaticClass());
+	ResultsWidget->SetResults(Results);
+	ScreenWidget = ResultsWidget;
+	ScreenWidget->ShowScreen();
+}
+
 void ARacePlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);
+
+	if (!bRaceScreensSetUp)
+	{
+		bRaceScreensSetUp = true;
+		SetUpRaceScreens();
+	}
 
 	ARaceVehicle* Vehicle = Cast<ARaceVehicle>(GetPawn());
 	if (!Vehicle || !DrivingInput)

@@ -11,6 +11,8 @@
 #include "GameFramework/Pawn.h"
 #include "Vehicle/RaceVehicle.h"
 #include "PhysicsEngine/BodyInstance.h"
+#include "Race/RaceGameState.h"
+#include "Race/RaceTrackerComponent.h"
 #include "Race/TrackSplineActor.h"
 #include "Race/TrackSplineTable.h"
 #include "UnrealClient.h"
@@ -585,13 +587,29 @@ void UHoverMovementComponent::AsyncPhysicsTickComponent(float DeltaTime, float S
 		return bFoundGround;
 	};
 
+	// During the start countdown (and while the race waits for its setup) nobody may move: no driver is
+	// asked for input, so autopilots and computer drivers do not start counting anything either.
+	if (!RaceTracker.IsValid() && !bRaceTrackerSearched)
+	{
+		bRaceTrackerSearched = true;
+		const ARaceGameState* RaceState = World->GetGameState<ARaceGameState>();
+		RaceTracker = RaceState ? RaceState->GetTracker() : nullptr;
+	}
+	bRaceLocked = RaceTracker.IsValid() && !RaceTracker->IsRaceStartedAt(SimTime);
+
 	FVehicleInputState StepInput = Input;
 	bool bBoostPressed = bBoostPressedLatch;
 	bool bAbilityPressed = bAbilityPressedLatch;
 #if !UE_BUILD_SHIPPING
 	// Scripted input drives the player's car only; test dummies just sit there.
 	const int32 ScriptedMode = CosmicHotshots::VehicleCVars::ScriptedInput.GetValueOnGameThread();
-	if (bTestBot)
+	if (bRaceLocked)
+	{
+		StepInput = FVehicleInputState();
+		bBoostPressed = false;
+		bAbilityPressed = false;
+	}
+	else if (bTestBot)
 	{
 		// Test bots only steer and use the throttle; no boost, no ability.
 		StepInput = GetAutopilotInput(*Body, TestBotLateralOffset, TestBotThrottleScale, DeltaTime, 0.f);
@@ -634,7 +652,8 @@ void UHoverMovementComponent::AsyncPhysicsTickComponent(float DeltaTime, float S
 #endif
 
 	// A step driver (the AI) decides here, inside the physics step, so its race does not depend on the frame rate.
-	if (StepInputSource)
+	bool bStepDriver = false;
+	if (StepInputSource && !bRaceLocked)
 	{
 		FVehicleStepInputContext InputContext;
 		InputContext.Location = FVector(Body->X());
@@ -646,7 +665,14 @@ void UHoverMovementComponent::AsyncPhysicsTickComponent(float DeltaTime, float S
 		InputContext.State = &SimState;
 		InputContext.Modifiers = Modifiers ? &Modifiers->GetStack() : nullptr;
 
-		StepInput = StepInputSource->GetStepInput(InputContext);
+		bStepDriver = StepInputSource->WantsControl(InputContext);
+		if (bStepDriver)
+		{
+			StepInput = StepInputSource->GetStepInput(InputContext);
+		}
+	}
+	if (bStepDriver)
+	{
 		bBoostPressed = StepInput.bBoost && !bStepBoostWasHeld;
 		bStepBoostWasHeld = StepInput.bBoost;
 		bAbilityPressed = StepInput.bUseAbility && !bStepAbilityWasHeld;
@@ -654,9 +680,15 @@ void UHoverMovementComponent::AsyncPhysicsTickComponent(float DeltaTime, float S
 	}
 
 	// Use-item presses are counted and stamped with this step; the item system handles them in its next step.
-	const bool bUseItemPressed = (StepInputSource || bScriptedItemInput) ? (StepInput.bUseItem && !bStepUseItemWasHeld) : bUseItemPressedLatch;
+	const bool bUseItemPressed = (bStepDriver || bScriptedItemInput) ? (StepInput.bUseItem && !bStepUseItemWasHeld) : bUseItemPressedLatch;
 	bStepUseItemWasHeld = StepInput.bUseItem;
 	bUseItemPressedLatch = false;
+	if (bRaceLocked)
+	{
+		StepInput = FVehicleInputState();
+		bBoostPressed = false;
+		bAbilityPressed = false;
+	}
 	bScriptedItemInput = false;
 	if (bUseItemPressed)
 	{
@@ -839,7 +871,7 @@ void UHoverMovementComponent::RunTestHelpers()
 		bTestCharacterApplied = true;
 		if (ARaceVehicle* Vehicle = Cast<ARaceVehicle>(GetOwner()))
 		{
-			// With -DPCVars the game mode already did this before the first physics step; do not apply it twice.
+			// Set before the race started, the game mode already did this before the first physics step; do not apply it twice.
 			const UCharacterDefinition* TestCharacter = Settings->FindCharacter(FString::FromInt(PlayerCharacterIndex));
 			if (Vehicle->GetCharacter() != TestCharacter)
 			{

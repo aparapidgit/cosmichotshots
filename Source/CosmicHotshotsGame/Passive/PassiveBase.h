@@ -96,6 +96,10 @@ public:
 	/** Short name for debug display and, later, the HUD indicator. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Passive")
 	FText DisplayName;
+
+	/** One or two sentences for the character select screen: what the passive does. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Passive", meta = (MultiLine = "true"))
+	FText Description;
 };
 
 UCLASS(Abstract)

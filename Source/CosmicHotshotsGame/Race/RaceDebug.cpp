@@ -39,3 +39,14 @@ namespace CosmicHotshots::RaceCVars
 		TEXT("ch.Race.ItemBoxes"), 1,
 		TEXT("1 = item boxes are in the race, 0 = no boxes. Read when the race starts; stands in for the race setup option."), ECVF_Cheat);
 }
+
+namespace CosmicHotshots::RaceCVars
+{
+	TAutoConsoleVariable<float> Countdown(
+		TEXT("ch.Race.Countdown"), -1.f,
+		TEXT("Seconds of start countdown. Negative = use the race tuning data asset. 0 = the race starts at once."), ECVF_Cheat);
+
+	TAutoConsoleVariable<int32> SkipMenus(
+		TEXT("ch.Flow.SkipMenus"), 0,
+		TEXT("1 = no character select: the race starts straight away, set up by the ch.Race.* console variables."), ECVF_Cheat);
+}

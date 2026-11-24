@@ -111,6 +111,16 @@ public:
 	 */
 	const FRaceStepView& GetViewForStep(float SimTime) const;
 
+	/**
+	 * May the cars move in the physics step with this SimTime? False during the start countdown and while
+	 * the race waits for its setup. The start time is fixed in advance, so every car unlocks in the same
+	 * step whichever component steps first.
+	 */
+	bool IsRaceStartedAt(float SimTime) const;
+
+	/** Seconds of countdown left (0 = racing), negative while the race waits for its setup. Game thread. */
+	float GetCountdownRemaining() const;
+
 	/** Full step state (passing-time history, pair states). Only for code that knows the tracker has finished its step. */
 	const FRaceTrackerState& GetStepState() const { return StepState; }
 
@@ -134,6 +144,19 @@ private:
 	TArray<TOptional<FVector>> StepLocations;
 	TArray<FRaceEvent> StepEvents;
 	double NextLogTime = 0.0;
+
+	// Start of the race, decided in the first physics step.
+	bool bStartDecided = false;
+	/** The race waits for the player to set it up (character select): nothing moves, nothing is tracked. */
+	bool bWaitingForSetup = false;
+	bool bHasCountdown = false;
+	int32 CountdownStepsRemaining = 0;
+	/** SimTime of the first step in which the cars may move. */
+	float RaceStartSimTime = 0.f;
+	float StepLength = 0.f;
+	float PublishedCountdown = 0.f;
+	/** Countdown length from the race tuning (s). */
+	float CountdownSeconds = 0.f;
 
 	/** Views of the two newest steps (see GetViewForStep). */
 	FRaceStepView NewestView;

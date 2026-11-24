@@ -6,6 +6,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "Race/RaceTypes.h"
 #include "Vehicle/VehicleImpactComponent.h"
 #include "RacePlayerController.generated.h"
 
@@ -47,6 +48,24 @@ private:
 
 	float GetAxisValue(const UInputAction* Action) const;
 	bool GetButtonValue(const UInputAction* Action) const;
+
+	/**
+	 * Race screens of this player: the start / finish overlay, the character select while the race waits for
+	 * its setup, and the results when the race is over. Called once, in the first tick (console variables
+	 * from the command line are not there yet in BeginPlay).
+	 */
+	void SetUpRaceScreens();
+
+	UFUNCTION()
+	void HandleRaceFinished(const FRaceResultData& Results);
+
+	bool bRaceScreensSetUp = false;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class URaceOverlayWidget> OverlayWidget;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class URaceScreenWidget> ScreenWidget;
 
 	/** Loaded from project settings (Cosmic Hotshots > Input). */
 	UPROPERTY(Transient)
