@@ -30,6 +30,17 @@
 # Sulgwen passive (roster index 3) from the last grid slot against 5 bots (chain level rises with overtakes, ends after 4 s):
 #         .\Scripts\run_hover_test.ps1 -Fps 60 -Seconds 110 -LogInterval 10 -TimeoutSeconds 900 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Race.Laps 1,ch.Test.Bots 5,ch.Test.PlayerCharacter 3,ch.Test.PlayerGridSlot 7"
 #   Add "ch.Passives.Enabled 0" to switch every passive off.
+# Roster indices: 0 TestLight, 1 TestHeavy, 2 Spark, 3 Sulgwen, 4 Freya, 5 Killjoke, 6 Glick, 7 Wilqis, 8 Slot7, 9 Slot8.
+# Other passives ($L = "ch.Test.ScriptedInput 6,ch.Race.Laps 1"; use -Seconds 100 -LogInterval 10 -TimeoutSeconds 900):
+#   Wilqis   (gap to the car ahead):      "$L,ch.Test.Bots 3,ch.Test.BotCharacter 0,ch.Test.PlayerGridSlot 7,ch.Test.PlayerCharacter 7"
+#   Killjoke (leader pulls away, as bots): "$L,ch.Test.Bots 7,ch.Test.BotCharacter 5,ch.Test.PlayerCharacter 0"
+#   Freya    (close overtakes, as bots):   "$L,ch.Test.Bots 7,ch.Test.BotCharacter 4,ch.Test.PlayerCharacter 0"   (MODS maxSpeed=0.93 on the overtaken car)
+#   Slot8    (top 3 of 6, from pole):      "$L,ch.Test.Bots 5,ch.Test.BotCharacter 0,ch.Test.PlayerCharacter 9"
+# Side hit into a dummy turned side on (-Seconds 5 -LogInterval 0.5); compare the IMPACT speedChange with "ch.Passives.Enabled 0":
+#   Glick as the dummy:      "ch.Test.ScriptedInput 5,ch.Test.SpawnDummyAhead 2500,ch.Test.DummyYawOffset 90,ch.Test.PlayerCharacter 0,ch.Test.DummyCharacter 6"
+#   Slot8 2nd of 2 drivers:  "ch.Test.ScriptedInput 5,ch.Test.SpawnDummyAhead 4000,ch.Test.DummyYawOffset 90,ch.Test.PlayerCharacter 9,ch.Test.DummyCharacter 0"
+# Slot7 drift chain (one counted drift, then a wall hit resets it; -Seconds 45 -LogInterval 1):
+#   "ch.Test.ScriptedInput 8,ch.Test.PlayerCharacter 8"
 # Race lines (LogCosmicRace) carry the race time of the physics step and must match at every frame rate too.
 # The Unreal editor must be closed.
 

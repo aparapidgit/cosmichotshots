@@ -4,9 +4,9 @@ create_phase2_assets.py  -  Creates the Phase 2 data assets (Cosmic Hotshots, UE
 Creates what is missing and never replaces what exists:
   /Game/Data/Race/DA_RaceTuning_Default        URaceTuningData with the class defaults
   /Game/Data/Passives/DA_Passive_Spark         USparkPassiveDefinition (class defaults = placeholder values)
-  /Game/Data/Passives/DA_Passive_Sulgwen       USulgwenPassiveDefinition
-  /Game/Data/Characters/DA_Character_Spark     blue, passive = DA_Passive_Spark
-  /Game/Data/Characters/DA_Character_Sulgwen   purple, passive = DA_Passive_Sulgwen
+  /Game/Data/Passives/DA_Passive_<Name>        one per character: Sulgwen, Freya, Killjoke, Glick, Wilqis, Slot7, Slot8
+  /Game/Data/Characters/DA_Character_<Name>    Spark (blue), Sulgwen (purple), Freya (red), Killjoke (green), Glick (yellow),
+                                              Wilqis (white), Slot7 (orange), Slot8 (pink); each points at its passive
 
 The project settings (Config/DefaultGame.ini, section CosmicHotshotsSettings) point at
 DA_RaceTuning_Default (RaceTuning=) and list the characters in the roster (+Characters=).
@@ -25,12 +25,25 @@ CHARACTER_DATA_DIR = "/Game/Data/Characters"
 PASSIVES = [
     ("DA_Passive_Spark", unreal.SparkPassiveDefinition, "Comeback"),
     ("DA_Passive_Sulgwen", unreal.SulgwenPassiveDefinition, "Chain overtaking"),
+    ("DA_Passive_Freya", unreal.FreyaPassiveDefinition, "Aggressive overtaking"),
+    ("DA_Passive_Killjoke", unreal.KilljokePassiveDefinition, "Leader hunt"),
+    ("DA_Passive_Glick", unreal.GlickPassiveDefinition, "Fighting for space"),
+    ("DA_Passive_Wilqis", unreal.WilqisPassiveDefinition, "Chase"),
+    ("DA_Passive_Slot7", unreal.Slot7PassiveDefinition, "Drift chain"),
+    ("DA_Passive_Slot8", unreal.Slot8PassiveDefinition, "Defending the lead"),
 ]
 
 # (character asset, display name, colour RGBA, passive asset). Stats stay neutral until the real designs exist.
 CHARACTERS = [
     ("DA_Character_Spark", "Spark", (0.05, 0.3, 1.0, 1.0), "DA_Passive_Spark"),
     ("DA_Character_Sulgwen", "Sulgwen", (0.55, 0.15, 0.9, 1.0), "DA_Passive_Sulgwen"),
+    ("DA_Character_Freya", "Freya", (1.0, 0.08, 0.05, 1.0), "DA_Passive_Freya"),
+    ("DA_Character_Killjoke", "Killjoke", (0.1, 0.8, 0.15, 1.0), "DA_Passive_Killjoke"),
+    ("DA_Character_Glick", "Glick", (1.0, 0.85, 0.05, 1.0), "DA_Passive_Glick"),
+    ("DA_Character_Wilqis", "Wilqis", (0.95, 0.95, 0.95, 1.0), "DA_Passive_Wilqis"),
+    # Slots 7 and 8: working names until the characters are named.
+    ("DA_Character_Slot7", "Slot7", (1.0, 0.45, 0.05, 1.0), "DA_Passive_Slot7"),
+    ("DA_Character_Slot8", "Slot8", (1.0, 0.35, 0.7, 1.0), "DA_Passive_Slot8"),
 ]
 
 

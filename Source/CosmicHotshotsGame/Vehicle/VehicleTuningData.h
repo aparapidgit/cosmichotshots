@@ -80,6 +80,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact", meta = (ClampMin = "0.0"))
 	float ImpactCooldown = 0.2f;
 
+	/**
+	 * A contact with another car is a SIDE contact when its direction is within this angle (degrees) of the
+	 * car's sideways axis. Side-contact passives (Glick) only act on those.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact", meta = (ClampMin = "1.0", ClampMax = "89.0"))
+	float SideContactMaxAngle = 45.f;
+
 	/** Received speed change (cm/s) from which a hit causes a wobble (brief loss of grip and steering). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact", meta = (ClampMin = "0.0"))
 	float WobbleThreshold = 300.f;

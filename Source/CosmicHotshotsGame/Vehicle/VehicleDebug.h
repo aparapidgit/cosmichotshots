@@ -44,11 +44,17 @@ namespace CosmicHotshots::VehicleCVars
 	/** Test helper: roster index of the character given to the dummy car. Negative = project default. */
 	extern TAutoConsoleVariable<int32> DummyCharacter;
 
+	/** Test helper: the dummy car is turned by this many degrees (90 = side on to the player). */
+	extern TAutoConsoleVariable<float> DummyYawOffset;
+
 	/**
 	 * Test helper: number of test bots (0..7) placed on the free grid slots at the start. They drive the
 	 * test autopilot, each with its own line and throttle. NOT the race AI.
 	 */
 	extern TAutoConsoleVariable<int32> TestBots;
+
+	/** Test helper: roster index of the character every test bot gets. Negative = one after the other through the roster. */
+	extern TAutoConsoleVariable<int32> BotCharacter;
 
 	/** Test helper: grid slot (0 = pole) the first player starts from. Negative = normal order. Set at startup (-DPCVars). */
 	extern TAutoConsoleVariable<int32> PlayerGridSlot;

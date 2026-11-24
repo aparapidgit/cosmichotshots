@@ -84,6 +84,14 @@ namespace CosmicHotshots::VehicleCVars
 		TEXT("ch.Test.Bots"), 0,
 		TEXT("Test helper: number of test bots (0..7) on the free grid slots, driving the test autopilot. Set at startup (-DPCVars) or before the level loads."), ECVF_Cheat);
 
+	TAutoConsoleVariable<float> DummyYawOffset(
+		TEXT("ch.Test.DummyYawOffset"), 0.f,
+		TEXT("Test helper: the dummy car is turned by this many degrees (90 = side on to the player)."), ECVF_Cheat);
+
+	TAutoConsoleVariable<int32> BotCharacter(
+		TEXT("ch.Test.BotCharacter"), -1,
+		TEXT("Test helper: roster index of the character every test bot gets. Negative = one after the other through the roster."), ECVF_Cheat);
+
 	TAutoConsoleVariable<int32> PlayerGridSlot(
 		TEXT("ch.Test.PlayerGridSlot"), -1,
 		TEXT("Test helper: grid slot (0 = pole) the first player starts from. Negative = normal order. Set at startup (-DPCVars)."), ECVF_Cheat);
@@ -102,5 +110,5 @@ namespace CosmicHotshots::VehicleCVars
 
 	TAutoConsoleVariable<int32> ScriptedInput(
 		TEXT("ch.Test.ScriptedInput"), 0,
-		TEXT("Test helper: ignore the driver and feed a fixed input sequence. 1 = drive test, 2 = drift and boost test, 3 = wall hit test, 4 = close pass along a wall, 5 = straight past a dummy (overtake), 6 = autopilot along the track line (laps)."), ECVF_Cheat);
+		TEXT("Test helper: ignore the driver and feed a fixed input sequence. 1 = drive test, 2 = drift and boost test, 3 = wall hit test, 4 = close pass along a wall, 5 = straight past a dummy (overtake), 6 = autopilot along the track line (laps), 7 = lean into a dummy beside (side contact), 8 = autopilot with two long drifts (drift chain)."), ECVF_Cheat);
 }

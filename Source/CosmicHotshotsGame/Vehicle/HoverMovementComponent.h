@@ -91,12 +91,14 @@ private:
 	 * throttle, so a headless test can drive whole laps. Called from the physics step.
 	 * NOT the race AI: that gets its own controller in Phase 2.
 	 */
-	FVehicleInputState GetAutopilotInput(const Chaos::FRigidBodyHandle_Internal& Body, float LateralOffset, float ThrottleScale, float DeltaTime);
+	FVehicleInputState GetAutopilotInput(const Chaos::FRigidBodyHandle_Internal& Body, float LateralOffset, float ThrottleScale, float DeltaTime, float MaxSpeed);
 
 	/** Autopilot: seconds spent (almost) standing still; long enough means stuck against something. */
 	float AutopilotStuckTime = 0.f;
 	/** Autopilot: seconds of reversing left to get free. */
 	float AutopilotReverseTimeRemaining = 0.f;
+	/** Test helper (scripted mode 8): simulation time the scripted drifts started; negative = not yet. */
+	double DriftChainStartTime = -1.0;
 
 	/** Test helper (ch.Test.Bots): this car is a test bot and drives the autopilot. */
 	bool bTestBot = false;
@@ -127,6 +129,9 @@ private:
 
 	/** Test helper (ch.Test.SpeedModifier): the test modifier has been added. */
 	bool bTestModifierApplied = false;
+
+	/** Impacts counted so far (walls and cars). Passives watch it to notice a hit. */
+	int32 ImpactCounter = 0;
 
 	FVehicleInputState Input;
 	FHoverSimState SimState;

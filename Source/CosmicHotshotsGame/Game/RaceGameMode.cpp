@@ -82,7 +82,8 @@ void ARaceGameMode::SpawnTestDummy()
 
 	FActorSpawnParameters SpawnParameters;
 	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	ARaceVehicle* Dummy = GetWorld()->SpawnActor<ARaceVehicle>(PlayerPawn->GetClass(), Location, PlayerPawn->GetActorRotation(), SpawnParameters);
+	ARaceVehicle* Dummy = GetWorld()->SpawnActor<ARaceVehicle>(PlayerPawn->GetClass(), Location,
+		PlayerPawn->GetActorRotation() + FRotator(0.0, VehicleCVars::DummyYawOffset.GetValueOnGameThread(), 0.0), SpawnParameters);
 
 	const int32 DummyCharacterIndex = VehicleCVars::DummyCharacter.GetValueOnGameThread();
 	if (Dummy && DummyCharacterIndex >= 0)
@@ -150,7 +151,9 @@ void ARaceGameMode::SpawnTestBots()
 		}
 		if (NumCharacters > 0)
 		{
-			BotVehicle->SetCharacter(Settings->FindCharacter(FString::FromInt((Bot + 1) % NumCharacters)));
+			// ch.Test.BotCharacter: every bot the same roster character; negative = one after the other through the roster.
+			const int32 BotCharacter = VehicleCVars::BotCharacter.GetValueOnGameThread();
+			BotVehicle->SetCharacter(Settings->FindCharacter(FString::FromInt(BotCharacter >= 0 ? BotCharacter : (Bot + 1) % NumCharacters)));
 		}
 		BotVehicle->GetHoverMovement()->SetTestBot(BotLateralOffsets[Bot], BotThrottleScales[Bot]);
 		++Spawned;

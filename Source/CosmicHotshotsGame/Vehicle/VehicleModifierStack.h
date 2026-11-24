@@ -24,7 +24,27 @@ enum class EVehicleStat : uint8
 	Steering,
 	Grip,
 	RamPower,
-	Stability
+	Stability,
+
+	// Impact-only stats (not part of a character's permanent stat modifiers).
+
+	/** Knock-back this car gives in SIDE contact with another car (on top of RamPower). */
+	SideRamPower,
+	/** Knock-back this car receives in SIDE contact with another car. Below 1 = loses less speed. */
+	SideSpeedLoss,
+	/** Length of the wobble / spin-out after a hit. Below 1 = recovers faster. */
+	HitRecoveryTime,
+	/** Speed this car loses in any hit (knock-back from cars, speed lost along walls). Below 1 = loses less. */
+	HitSpeedLoss
+};
+
+/** Combined impact-only multipliers of a modifier stack (1 = no change). */
+struct FVehicleImpactModifiers
+{
+	float SideRamPower = 1.f;
+	float SideSpeedLoss = 1.f;
+	float HitRecoveryTime = 1.f;
+	float HitSpeedLoss = 1.f;
 };
 
 UENUM(BlueprintType)
@@ -75,8 +95,8 @@ public:
 	 */
 	void AddOrRefresh(const FVehicleModifierSpec& Spec);
 
-	/** Starts fading out every modifier of this source. */
-	void Remove(FName SourceId);
+	/** Starts fading out every modifier of this source. FadeOutOverride >= 0 replaces their own fade-out time (0 = gone at once). */
+	void Remove(FName SourceId, float FadeOutOverride = -1.f);
 
 	/** Removes everything at once (character change, reset). */
 	void Clear();
@@ -92,6 +112,9 @@ public:
 	/** Combined multipliers of everything in the stack (1 = no change). Mass is never modified. */
 	const FVehicleStatModifiers& GetTotals() const { return Totals; }
 
+	/** Combined impact-only multipliers (side contact, hit recovery, hit speed loss). */
+	const FVehicleImpactModifiers& GetImpactTotals() const { return ImpactTotals; }
+
 	const TArray<FVehicleModifier>& GetModifiers() const { return Modifiers; }
 
 private:
@@ -106,4 +129,5 @@ private:
 	TArray<FVehicleModifier> Modifiers;
 	TArray<FQueuedModifier> Queued;
 	FVehicleStatModifiers Totals;
+	FVehicleImpactModifiers ImpactTotals;
 };

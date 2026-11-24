@@ -59,6 +59,18 @@ namespace
 	constexpr float AutopilotStuckDelay = 1.f;
 	constexpr float AutopilotReverseDuration = 1.2f;
 
+	// Test helper: scripted mode 8 (drift chain). Distances along the track line in cm, times in seconds.
+	constexpr int32 DriftChainMode = 8;
+	/** Speed cap (cm/s) until the drifts are done, and seconds it stays on after them. */
+	constexpr float DriftChainMaxSpeed = 2300.f;
+	/** Line beside the track centre (cm, negative = left = outside of the sweeper) while drifting: a drift tightens the turn, so it needs room on the inside. */
+	constexpr float DriftChainLateralOffset = -1000.f;
+	constexpr double DriftChainSlowAfter = 2.0;
+	constexpr float DriftChainStartDistance = 33000.f;
+	constexpr float DriftChainStartWindow = 5000.f;
+	constexpr double DriftChainHold = 2.1;
+	constexpr double DriftChainPause = 1.0;
+
 	/**
 	 * Fixed input sequence for the headless frame-rate test (ch.Test.ScriptedInput 1).
 	 * Driven by simulation time, so every frame rate gets exactly the same input.
@@ -71,6 +83,23 @@ namespace
 		constexpr int32 WallHitMode = 3;
 		constexpr int32 ClosePassMode = 4;
 		constexpr int32 OvertakeMode = 5;
+		constexpr int32 SideContactMode = 7;
+		if (Mode == SideContactMode)
+		{
+			// Mode 7: pull away and lean left into a dummy car standing right beside (side contact).
+			constexpr double SideSettleEnd = 1.0;
+			constexpr double SideSteerEnd = 1.8;
+			constexpr double SideThrottleEnd = 5.0;
+			constexpr float SideSteer = -0.25f;
+
+			FVehicleInputState SideScripted;
+			if (SimTime >= SideSettleEnd && SimTime < SideThrottleEnd)
+			{
+				SideScripted.Throttle = 1.f;
+				SideScripted.Steer = SimTime < SideSteerEnd ? SideSteer : 0.f;
+			}
+			return SideScripted;
+		}
 		if (Mode == OvertakeMode)
 		{
 			// Mode 5: settle, then full throttle straight ahead (past a dummy car placed ahead and to the side).
@@ -286,6 +315,14 @@ FVehicleImpactParams UHoverMovementComponent::BuildImpactParams() const
 	Params.WallBoostLossMax = Tuning->WallBoostLossMax;
 	Params.ClosePassHitLockout = Tuning->ClosePassHitLockout;
 	Params.Stability = Stats ? Stats->GetStability() : 1.f;
+	Params.SideContactMinCos = FMath::Cos(FMath::DegreesToRadians(Tuning->SideContactMaxAngle));
+	if (Modifiers)
+	{
+		const FVehicleImpactModifiers& ImpactModifiers = Modifiers->GetStack().GetImpactTotals();
+		Params.SideSpeedLoss = ImpactModifiers.SideSpeedLoss;
+		Params.HitRecoveryTime = ImpactModifiers.HitRecoveryTime;
+		Params.HitSpeedLoss = ImpactModifiers.HitSpeedLoss;
+	}
 	return Params;
 }
 
@@ -320,6 +357,7 @@ void UHoverMovementComponent::ApplyImpacts(Chaos::FRigidBodyHandle_Internal& Bod
 	{
 		// Who was hit. The physics thread waits while this step runs, so reading the other body's owner is safe.
 		ResolvedContacts.Reset(RawContacts.Num());
+		const float SideContactMinCos = FMath::Cos(FMath::DegreesToRadians(Tuning->SideContactMaxAngle));
 		for (const FVehicleRawContact& Raw : RawContacts)
 		{
 			FVehicleContact& Contact = ResolvedContacts.AddDefaulted_GetRef();
@@ -330,6 +368,13 @@ void UHoverMovementComponent::ApplyImpacts(Chaos::FRigidBodyHandle_Internal& Bod
 				// Mass straight from the physics particle: the game-thread body API is off limits inside the step.
 				Contact.OtherMass = Raw.OtherMass;
 				Contact.OtherRamPower = OtherVehicle->GetStats()->GetRamPower();
+				// Touched on the OTHER car's side: its side-contact push (Glick) counts on top of its RamPower.
+				// Passives keep this value constant while they are on, so it does not matter which car stepped first.
+				const bool bOnOthersSide = FMath::Abs(FVector::DotProduct(Raw.Normal, Raw.OtherRotation.GetRightVector())) >= SideContactMinCos;
+				if (bOnOthersSide && OtherVehicle->GetModifiers())
+				{
+					Contact.OtherSideRamPower = OtherVehicle->GetModifiers()->GetStack().GetImpactTotals().SideRamPower;
+				}
 			}
 			else if (Raw.OtherProxy)
 			{
@@ -346,7 +391,9 @@ void UHoverMovementComponent::ApplyImpacts(Chaos::FRigidBodyHandle_Internal& Bod
 		}
 	}
 
+	const int32 ImpactsBefore = PendingImpacts.Num();
 	FVehicleImpactSim::Apply(Body, BuildImpactParams(), ResolvedContacts, ElapsedSimTime, ImpactState, SimState, PendingImpacts);
+	ImpactCounter += PendingImpacts.Num() - ImpactsBefore;
 }
 
 FHoverSimParams UHoverMovementComponent::BuildSimParams() const
@@ -523,13 +570,31 @@ void UHoverMovementComponent::AsyncPhysicsTickComponent(float DeltaTime, float S
 	if (bTestBot)
 	{
 		// Test bots only steer and use the throttle; no boost, no ability.
-		StepInput = GetAutopilotInput(*Body, TestBotLateralOffset, TestBotThrottleScale, DeltaTime);
+		StepInput = GetAutopilotInput(*Body, TestBotLateralOffset, TestBotThrottleScale, DeltaTime, 0.f);
 		bBoostPressed = false;
 		bAbilityPressed = false;
 	}
 	else if (ScriptedMode != 0 && IsOwnerPlayerControlled())
 	{
-		StepInput = ScriptedMode == AutopilotMode ? GetAutopilotInput(*Body, 0.f, 1.f, DeltaTime) : GetScriptedTestInput(ScriptedMode, ElapsedSimTime);
+		if (ScriptedMode == DriftChainMode)
+		{
+			// Mode 8: the autopilot at reduced pace, with two long right-hand drifts in the first sweeper.
+			if (DriftChainStartTime < 0.0 && AutopilotDistance >= DriftChainStartDistance && AutopilotDistance < DriftChainStartDistance + DriftChainStartWindow)
+			{
+				DriftChainStartTime = ElapsedSimTime;
+			}
+			const double SinceStart = DriftChainStartTime < 0.0 ? -1.0 : ElapsedSimTime - DriftChainStartTime;
+			const bool bFirstDrift = SinceStart >= 0.0 && SinceStart < DriftChainHold;
+			const bool bSecondDrift = SinceStart >= DriftChainHold + DriftChainPause && SinceStart < 2.0 * DriftChainHold + DriftChainPause;
+			// Slow enough to hold the corner until both drifts are done, then flat out (the next corner ends in a wall).
+			const bool bDriftsDone = SinceStart >= 2.0 * DriftChainHold + DriftChainPause + DriftChainSlowAfter;
+			StepInput = GetAutopilotInput(*Body, bDriftsDone ? 0.f : DriftChainLateralOffset, 1.f, DeltaTime, bDriftsDone ? 0.f : DriftChainMaxSpeed);
+			StepInput.bDriftRight = bFirstDrift || bSecondDrift;
+		}
+		else
+		{
+			StepInput = ScriptedMode == AutopilotMode ? GetAutopilotInput(*Body, 0.f, 1.f, DeltaTime, 0.f) : GetScriptedTestInput(ScriptedMode, ElapsedSimTime);
+		}
 		bBoostPressed = StepInput.bBoost && !bScriptedBoostWasHeld;
 		bScriptedBoostWasHeld = StepInput.bBoost;
 		bAbilityPressed = StepInput.bUseAbility && !bScriptedAbilityWasHeld;
@@ -561,7 +626,7 @@ void UHoverMovementComponent::AsyncPhysicsTickComponent(float DeltaTime, float S
 	}
 	if (Passive)
 	{
-		Passive->StepPassive(DeltaTime, SimTime);
+		Passive->StepPassive(DeltaTime, SimTime, SimState, ImpactCounter);
 	}
 
 	// Hits from the previous step first, so the hover step below already drives the bounced car.
@@ -596,7 +661,7 @@ void UHoverMovementComponent::SetTestBot(float LateralOffset, float ThrottleScal
 	TestBotThrottleScale = ThrottleScale;
 }
 
-FVehicleInputState UHoverMovementComponent::GetAutopilotInput(const Chaos::FRigidBodyHandle_Internal& Body, float LateralOffset, float ThrottleScale, float DeltaTime)
+FVehicleInputState UHoverMovementComponent::GetAutopilotInput(const Chaos::FRigidBodyHandle_Internal& Body, float LateralOffset, float ThrottleScale, float DeltaTime, float MaxSpeed)
 {
 	FVehicleInputState Autopilot;
 #if !UE_BUILD_SHIPPING
@@ -638,6 +703,10 @@ FVehicleInputState UHoverMovementComponent::GetAutopilotInput(const Chaos::FRigi
 
 	Autopilot.Steer = FMath::Clamp(AngleToAim / AutopilotFullSteerAngle, -1.f, 1.f);
 	Autopilot.Throttle = (FMath::Abs(AngleToAim) > AutopilotSlowAngle ? AutopilotSlowThrottle : 1.f) * ThrottleScale;
+	if (MaxSpeed > 0.f && Speed > MaxSpeed)
+	{
+		Autopilot.Throttle = 0.f;
+	}
 #endif
 	return Autopilot;
 }
@@ -672,9 +741,11 @@ void UHoverMovementComponent::LogStep(float DeltaTime)
 		if (Modifiers && !Modifiers->GetStack().GetModifiers().IsEmpty())
 		{
 			const FVehicleStatModifiers& Totals = Modifiers->GetStack().GetTotals();
-			UE_LOG(LogCosmicVehicle, Log, TEXT("MODS %s t=%.3f count=%d maxSpeed=%.4f accel=%.4f steering=%.4f grip=%.4f ram=%.4f stability=%.4f"),
+			const FVehicleImpactModifiers& ImpactTotals = Modifiers->GetStack().GetImpactTotals();
+			UE_LOG(LogCosmicVehicle, Log, TEXT("MODS %s t=%.3f count=%d maxSpeed=%.4f accel=%.4f steering=%.4f grip=%.4f ram=%.4f stability=%.4f sideRam=%.4f sideLoss=%.4f recovery=%.4f hitLoss=%.4f"),
 				*GetNameSafe(GetOwner()), ElapsedSimTime, Modifiers->GetStack().GetModifiers().Num(),
-				Totals.MaxSpeed, Totals.Acceleration, Totals.Steering, Totals.Grip, Totals.RamPower, Totals.Stability);
+				Totals.MaxSpeed, Totals.Acceleration, Totals.Steering, Totals.Grip, Totals.RamPower, Totals.Stability,
+				ImpactTotals.SideRamPower, ImpactTotals.SideSpeedLoss, ImpactTotals.HitRecoveryTime, ImpactTotals.HitSpeedLoss);
 		}
 	}
 #endif

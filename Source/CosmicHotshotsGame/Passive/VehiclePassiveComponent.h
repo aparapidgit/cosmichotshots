@@ -13,6 +13,7 @@
 
 class UPassiveBase;
 class UPassiveDefinition;
+struct FHoverSimState;
 class URaceTrackerComponent;
 class UVehicleModifierComponent;
 
@@ -31,7 +32,7 @@ public:
 	void SetDefinition(const UPassiveDefinition* InDefinition);
 
 	/** One fixed physics step. SimTime is the value the engine passed to the step. */
-	void StepPassive(float DeltaTime, float SimTime);
+	void StepPassive(float DeltaTime, float SimTime, const FHoverSimState& VehicleState, int32 ImpactCount);
 
 	/** Null when the character has no passive. */
 	const UPassiveBase* GetPassive() const { return Passive; }

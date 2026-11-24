@@ -45,6 +45,8 @@ struct FVehicleRawContact
 	float Separation = 0.f;
 	/** Mass of the other body in kg (0 for walls and other bodies that do not move). */
 	float OtherMass = 0.f;
+	/** Orientation of the other body before the solve (tells whether it was touched on its side). */
+	FQuat OtherRotation = FQuat::Identity;
 };
 
 UCLASS()

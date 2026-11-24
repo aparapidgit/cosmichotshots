@@ -49,7 +49,7 @@ void UVehiclePassiveComponent::SetDefinition(const UPassiveDefinition* InDefinit
 	}
 }
 
-void UVehiclePassiveComponent::StepPassive(float DeltaTime, float SimTime)
+void UVehiclePassiveComponent::StepPassive(float DeltaTime, float SimTime, const FHoverSimState& VehicleState, int32 ImpactCount)
 {
 	if (!Passive || !Modifiers)
 	{
@@ -76,6 +76,9 @@ void UVehiclePassiveComponent::StepPassive(float DeltaTime, float SimTime)
 
 	FPassiveStepContext Context;
 	Context.DeltaTime = DeltaTime;
+	Context.SimTime = SimTime;
+	Context.Vehicle = &VehicleState;
+	Context.ImpactCount = ImpactCount;
 	Context.Modifiers = &Modifiers->GetStack();
 	if (URaceTrackerComponent* RaceTracker = Tracker.Get())
 	{
@@ -85,6 +88,7 @@ void UVehiclePassiveComponent::StepPassive(float DeltaTime, float SimTime)
 		}
 		Context.Race = &RaceTracker->GetViewForStep(SimTime);
 		Context.RacerId = RacerId;
+		Context.Tracker = RaceTracker;
 	}
 
 	Passive->Step(Context);

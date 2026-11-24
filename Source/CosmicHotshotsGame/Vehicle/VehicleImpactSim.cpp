@@ -34,12 +34,12 @@ namespace
 			const double SpinSign = Side >= 0.0 ? -1.0 : 1.0;
 			Body.SetW(Body.W() + Up * (SpinSign * FMath::DegreesToRadians(Params.SpinOutYawRate)));
 
-			SimState.ControlLossTimeRemaining = FMath::Max(SimState.ControlLossTimeRemaining, Params.SpinOutDuration);
+			SimState.ControlLossTimeRemaining = FMath::Max(SimState.ControlLossTimeRemaining, Params.SpinOutDuration * Params.HitRecoveryTime);
 		}
 		else if (Info.SpeedChange >= Params.WobbleThreshold)
 		{
 			Info.Reaction = EImpactReaction::Wobble;
-			SimState.ControlLossTimeRemaining = FMath::Max(SimState.ControlLossTimeRemaining, Params.WobbleDuration);
+			SimState.ControlLossTimeRemaining = FMath::Max(SimState.ControlLossTimeRemaining, Params.WobbleDuration * Params.HitRecoveryTime);
 		}
 	}
 }
@@ -153,7 +153,11 @@ void FVehicleImpactSim::Apply(
 			// Knock-back this car receives: the attacker's RamPower pushes it up, this car's Stability
 			// pulls it down, and the reduced mass makes the heavier car move less.
 			const double ReducedMass = (SelfMass * Contact->OtherMass) / FMath::Max(SelfMass + Contact->OtherMass, UE_DOUBLE_KINDA_SMALL_NUMBER);
-			const double Impulse = Params.VehicleBounce * ClosingSpeed * ReducedMass * (Contact->OtherRamPower / FMath::Max(Params.Stability, UE_KINDA_SMALL_NUMBER));
+			// Passives: a side-contact specialist pushes harder (attacker) or is pushed less (this car), and
+			// some cars lose less speed in any hit.
+			const bool bSideContact = FMath::Abs(FVector::DotProduct(Normal, FQuat(Body.R()).GetRightVector())) >= Params.SideContactMinCos;
+			const double PassiveScale = Contact->OtherSideRamPower * Params.HitSpeedLoss * (bSideContact ? Params.SideSpeedLoss : 1.f);
+			const double Impulse = Params.VehicleBounce * ClosingSpeed * ReducedMass * (Contact->OtherRamPower / FMath::Max(Params.Stability, UE_KINDA_SMALL_NUMBER)) * PassiveScale;
 			const float SpeedChange = static_cast<float>(FMath::Min(Impulse / FMath::Max(SelfMass, UE_DOUBLE_KINDA_SMALL_NUMBER), static_cast<double>(Params.MaxImpactSpeedChange)));
 
 			Body.SetV(Body.V() + Normal * SpeedChange);
@@ -170,7 +174,7 @@ void FVehicleImpactSim::Apply(
 			const FVector Velocity(Body.V());
 			const FVector AlongWall = Velocity - Normal * FVector::DotProduct(Velocity, Normal);
 			const float Hardness = FMath::Clamp(ClosingSpeed / Params.WallHardHitSpeed, 0.f, 1.f);
-			const FVector ScrapeLoss = -AlongWall * (Params.WallSpeedLoss * Hardness);
+			const FVector ScrapeLoss = -AlongWall * (Params.WallSpeedLoss * Hardness * Params.HitSpeedLoss);
 
 			Body.SetV(Velocity + Normal * BounceSpeed + ScrapeLoss);
 

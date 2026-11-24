@@ -2,19 +2,7 @@
 
 namespace
 {
-	float& GetStat(FVehicleStatModifiers& Stats, EVehicleStat Stat)
-	{
-		switch (Stat)
-		{
-		case EVehicleStat::Acceleration: return Stats.Acceleration;
-		case EVehicleStat::Steering: return Stats.Steering;
-		case EVehicleStat::Grip: return Stats.Grip;
-		case EVehicleStat::RamPower: return Stats.RamPower;
-		case EVehicleStat::Stability: return Stats.Stability;
-		case EVehicleStat::MaxSpeed:
-		default: return Stats.MaxSpeed;
-		}
-	}
+	constexpr int32 NumStats = static_cast<int32>(EVehicleStat::HitSpeedLoss) + 1;
 
 	/** No stat is ever multiplied down to nothing, whatever is stacked. */
 	constexpr float MinTotalMultiplier = 0.1f;
@@ -38,13 +26,17 @@ void FVehicleModifierStack::AddOrRefresh(const FVehicleModifierSpec& Spec)
 	RecomputeTotals();
 }
 
-void FVehicleModifierStack::Remove(FName SourceId)
+void FVehicleModifierStack::Remove(FName SourceId, float FadeOutOverride)
 {
 	for (FVehicleModifier& Modifier : Modifiers)
 	{
 		if (Modifier.Spec.SourceId == SourceId)
 		{
 			Modifier.bEnding = true;
+			if (FadeOutOverride >= 0.f)
+			{
+				Modifier.Spec.FadeOut = FadeOutOverride;
+			}
 		}
 	}
 }
@@ -114,24 +106,44 @@ void FVehicleModifierStack::Advance(float DeltaTime, float SimTime)
 
 void FVehicleModifierStack::RecomputeTotals()
 {
-	FVehicleStatModifiers Added;      // sums of Add modifiers, starting from 1
-	FVehicleStatModifiers Multiplied; // products of Multiply modifiers
+	// Per stat: (1 + sum of Add modifiers) x product of Multiply modifiers.
+	float Added[NumStats];
+	float Multiplied[NumStats];
+	for (int32 Index = 0; Index < NumStats; ++Index)
+	{
+		Added[Index] = 1.f;
+		Multiplied[Index] = 1.f;
+	}
+
 	for (const FVehicleModifier& Modifier : Modifiers)
 	{
+		const int32 Index = static_cast<int32>(Modifier.Spec.Stat);
 		if (Modifier.Spec.Op == EVehicleModifierOp::Add)
 		{
-			GetStat(Added, Modifier.Spec.Stat) += Modifier.Spec.Value * Modifier.Strength;
+			Added[Index] += Modifier.Spec.Value * Modifier.Strength;
 		}
 		else
 		{
-			GetStat(Multiplied, Modifier.Spec.Stat) *= 1.f + (Modifier.Spec.Value - 1.f) * Modifier.Strength;
+			Multiplied[Index] *= 1.f + (Modifier.Spec.Value - 1.f) * Modifier.Strength;
 		}
 	}
 
-	Totals = FVehicleStatModifiers();
-	for (const EVehicleStat Stat : { EVehicleStat::MaxSpeed, EVehicleStat::Acceleration, EVehicleStat::Steering,
-		EVehicleStat::Grip, EVehicleStat::RamPower, EVehicleStat::Stability })
+	auto Total = [&Added, &Multiplied](EVehicleStat Stat)
 	{
-		GetStat(Totals, Stat) = FMath::Max(GetStat(Added, Stat) * GetStat(Multiplied, Stat), MinTotalMultiplier);
-	}
+		const int32 Index = static_cast<int32>(Stat);
+		return FMath::Max(Added[Index] * Multiplied[Index], MinTotalMultiplier);
+	};
+
+	Totals = FVehicleStatModifiers();
+	Totals.MaxSpeed = Total(EVehicleStat::MaxSpeed);
+	Totals.Acceleration = Total(EVehicleStat::Acceleration);
+	Totals.Steering = Total(EVehicleStat::Steering);
+	Totals.Grip = Total(EVehicleStat::Grip);
+	Totals.RamPower = Total(EVehicleStat::RamPower);
+	Totals.Stability = Total(EVehicleStat::Stability);
+
+	ImpactTotals.SideRamPower = Total(EVehicleStat::SideRamPower);
+	ImpactTotals.SideSpeedLoss = Total(EVehicleStat::SideSpeedLoss);
+	ImpactTotals.HitRecoveryTime = Total(EVehicleStat::HitRecoveryTime);
+	ImpactTotals.HitSpeedLoss = Total(EVehicleStat::HitSpeedLoss);
 }

@@ -44,6 +44,17 @@ struct FVehicleImpactParams
 	float ClosePassHitLockout = 0.f;
 	/** This vehicle's final Stability (character modifiers applied). */
 	float Stability = 1.f;
+
+	// Impact-only multipliers from the modifier stack (passives). 1 = no change.
+
+	/** Knock-back received in side contact with another car. */
+	float SideSpeedLoss = 1.f;
+	/** Length of wobble and spin-out. */
+	float HitRecoveryTime = 1.f;
+	/** Knock-back received from cars and speed lost along walls. */
+	float HitSpeedLoss = 1.f;
+	/** A contact is a SIDE contact when its normal is within this cosine of the car's sideways axis. */
+	float SideContactMinCos = 0.7f;
 };
 
 /** A raw contact with what the game knows about the other body. */
@@ -55,6 +66,8 @@ struct FVehicleContact
 	bool bOtherIsVehicle = false;
 	float OtherMass = 0.f;
 	float OtherRamPower = 1.f;
+	/** The other car's SideRamPower when the contact is on ITS side, else 1. Multiplies OtherRamPower. */
+	float OtherSideRamPower = 1.f;
 };
 
 /** Carries over between physics steps. */

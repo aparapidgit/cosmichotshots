@@ -130,6 +130,10 @@ private:
 					Contact.OtherMass = static_cast<float>(OtherRigid->M());
 				}
 				Contact.Separation = static_cast<float>(Pair.GetSeparation(PointIndex));
+				if (Other)
+				{
+					Contact.OtherRotation = FQuat(Other->GetR());
+				}
 			}
 		}
 	}
