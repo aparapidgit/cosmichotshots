@@ -29,9 +29,15 @@ struct FRaceStepRacer
 	bool bInRace = false;
 	bool bStarted = false;
 	bool bFinished = false;
+	bool bHuman = false;
 	int32 Rank = 0;
 	int32 LapsCompleted = 0;
 	double Progress = 0.0;
+	/** Position in the lap along the track line (cm) and sideways from it (cm, positive = right). */
+	float TrackDistance = 0.f;
+	float LateralOffset = 0.f;
+	/** Speed along the track (cm/s). */
+	float ProgressSpeed = 0.f;
 	FRaceGap GapToCarAhead;
 };
 

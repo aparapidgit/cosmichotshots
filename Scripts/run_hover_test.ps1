@@ -41,6 +41,9 @@
 #   Slot8 2nd of 2 drivers:  "ch.Test.ScriptedInput 5,ch.Test.SpawnDummyAhead 4000,ch.Test.DummyYawOffset 90,ch.Test.PlayerCharacter 9,ch.Test.DummyCharacter 0"
 # Slot7 drift chain (one counted drift, then a wall hit resets it; -Seconds 45 -LogInterval 1):
 #   "ch.Test.ScriptedInput 8,ch.Test.PlayerCharacter 8"
+# Computer drivers (ARaceAIController; difficulty 0 Easy, 1 Normal, 2 Hard; ch.AI.RubberBanding 0 switches rubber banding off):
+#   Full grid, 3 laps:   -Seconds 200 -LogInterval 20 -TimeoutSeconds 900 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Race.Laps 3,ch.Race.AIOpponents 7,ch.Race.AIDifficulty 1"
+#   Compare difficulties: -Seconds 80 -LogInterval 10 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Race.Laps 1,ch.Race.AIOpponents 1,ch.Race.AIDifficulty 2,ch.AI.RubberBanding 0"
 # Race lines (LogCosmicRace) carry the race time of the physics step and must match at every frame rate too.
 # The Unreal editor must be closed.
 

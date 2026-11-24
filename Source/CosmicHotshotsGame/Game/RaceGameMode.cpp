@@ -1,6 +1,10 @@
 #include "Game/RaceGameMode.h"
 
 #include "CosmicHotshotsGame.h"
+#include "AI/AIDifficultyData.h"
+#include "AI/RaceAIController.h"
+#include "Character/CharacterDefinition.h"
+#include "Race/RaceDebug.h"
 #include "Debug/RaceDebugHUD.h"
 #include "EngineUtils.h"
 #include "Engine/World.h"
@@ -13,6 +17,11 @@
 #include "Race/RacePlayerState.h"
 #include "Vehicle/HoverMovementComponent.h"
 #include "Vehicle/RaceVehicle.h"
+
+namespace
+{
+	const FName ItemBoxPlaceholderTag(TEXT("ItemBox"));
+}
 
 ARaceGameMode::ARaceGameMode()
 {
@@ -33,10 +42,24 @@ void ARaceGameMode::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-#if !UE_BUILD_SHIPPING
-	if (!bTestDummyChecked)
+	if (bGridFilled)
 	{
-		bTestDummyChecked = true;
+		return;
+	}
+	bGridFilled = true;
+
+	// The test track's item box placeholders (plain cubes tagged "ItemBox") must not block cars. The map has
+	// them with collision on, so it is switched off here until the real AItemBox actors replace them.
+	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+	{
+		if (It->ActorHasTag(ItemBoxPlaceholderTag))
+		{
+			It->SetActorEnableCollision(false);
+		}
+	}
+
+#if !UE_BUILD_SHIPPING
+	{
 
 		// Test helper (ch.Test.PlayerCharacter): here, before the first physics step, when the console
 		// variable was set at startup (-DPCVars). Set later, the vehicle's own test helper applies it.
@@ -57,9 +80,17 @@ void ARaceGameMode::Tick(float DeltaSeconds)
 			PlayerPawn->SetActorLocationAndRotation(Slot->GetActorLocation(), Slot->GetActorRotation(), false, nullptr, ETeleportType::ResetPhysics);
 		}
 
-		SpawnTestBots();
-		SpawnTestDummy();
 	}
+#endif
+
+	// The rest of the grid, in the first pre-physics tick: every car exists before the first physics step.
+	FreeGridSlots = FindFreeGridSlots();
+#if !UE_BUILD_SHIPPING
+	SpawnTestBots();
+#endif
+	SpawnAIOpponents();
+#if !UE_BUILD_SHIPPING
+	SpawnTestDummy();
 #endif
 }
 
@@ -118,30 +149,16 @@ void ARaceGameMode::SpawnTestBots()
 	FActorSpawnParameters SpawnParameters;
 	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	// Slots the human players did not take (ChoosePlayerStart), front to back.
-	TArray<int32> FreeSlots;
-	for (int32 Slot = 0; Slot < Starts.Num(); ++Slot)
-	{
-		bool bTaken = false;
-		for (int32 PlayerIndex = 0; PlayerIndex < GetNumPlayers(); ++PlayerIndex)
-		{
-			bTaken |= GetPlayerGridSlot(PlayerIndex, Starts.Num()) == Slot;
-		}
-		if (!bTaken)
-		{
-			FreeSlots.Add(Slot);
-		}
-	}
-
 	int32 Spawned = 0;
 	for (int32 Bot = 0; Bot < RequestedBots; ++Bot)
 	{
-		if (!FreeSlots.IsValidIndex(Bot))
+		if (FreeGridSlots.IsEmpty())
 		{
 			UE_LOG(LogCosmicVehicle, Warning, TEXT("ch.Test.Bots: only %d free grid slots, %d bots requested."), Spawned, RequestedBots);
 			break;
 		}
-		const int32 Slot = FreeSlots[Bot];
+		const int32 Slot = FreeGridSlots[0];
+		FreeGridSlots.RemoveAt(0);
 
 		ARaceVehicle* BotVehicle = GetWorld()->SpawnActor<ARaceVehicle>(const_cast<UClass*>(VehicleClass),
 			Starts[Slot]->GetActorLocation(), Starts[Slot]->GetActorRotation(), SpawnParameters);
@@ -159,6 +176,95 @@ void ARaceGameMode::SpawnTestBots()
 		++Spawned;
 	}
 #endif
+}
+
+TArray<int32> ARaceGameMode::FindFreeGridSlots()
+{
+	// Slots the human players did not take (ChoosePlayerStart), front to back, at most MaxGridSize slots in all.
+	const int32 NumSlots = FMath::Min(GetSortedPlayerStarts().Num(), UCosmicHotshotsSettings::MaxGridSize);
+	TArray<int32> FreeSlots;
+	for (int32 Slot = 0; Slot < NumSlots; ++Slot)
+	{
+		bool bTaken = false;
+		for (int32 PlayerIndex = 0; PlayerIndex < GetNumPlayers(); ++PlayerIndex)
+		{
+			bTaken |= GetPlayerGridSlot(PlayerIndex, NumSlots) == Slot;
+		}
+		if (!bTaken)
+		{
+			FreeSlots.Add(Slot);
+		}
+	}
+	return FreeSlots;
+}
+
+void ARaceGameMode::SpawnAIOpponents()
+{
+	using namespace CosmicHotshots;
+
+	const int32 Requested = FMath::Clamp(RaceCVars::AIOpponents.GetValueOnGameThread(), 0, UCosmicHotshotsSettings::MaxGridSize - 1);
+	if (Requested == 0)
+	{
+		return;
+	}
+
+	const UCosmicHotshotsSettings* Settings = GetDefault<UCosmicHotshotsSettings>();
+	const int32 DifficultyIndex = RaceCVars::AIDifficulty.GetValueOnGameThread();
+	const UAIDifficultyData* Difficulty = Settings->GetAIDifficulty(DifficultyIndex >= 0 ? DifficultyIndex : Settings->DefaultAIDifficulty);
+
+	// Characters are unique per race: skip the ones the humans drive. Roster entries without a passive are
+	// the dev test characters, not racers.
+	TArray<const UCharacterDefinition*> Available;
+	for (const TSoftObjectPtr<UCharacterDefinition>& Entry : Settings->Characters)
+	{
+		const UCharacterDefinition* Candidate = Entry.LoadSynchronous();
+		if (!Candidate || !Candidate->PassiveDefinition)
+		{
+			continue;
+		}
+		bool bTaken = false;
+		for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+		{
+			const ARaceVehicle* HumanVehicle = It->IsValid() ? Cast<ARaceVehicle>((*It)->GetPawn()) : nullptr;
+			bTaken |= HumanVehicle && HumanVehicle->GetCharacter() == Candidate;
+		}
+		if (!bTaken)
+		{
+			Available.Add(Candidate);
+		}
+	}
+
+	const TArray<APlayerStart*> Starts = GetSortedPlayerStarts();
+	UClass* VehicleClass = DefaultPawnClass ? DefaultPawnClass.Get() : ARaceVehicle::StaticClass();
+
+	FActorSpawnParameters SpawnParameters;
+	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	for (int32 Index = 0; Index < Requested; ++Index)
+	{
+		if (FreeGridSlots.IsEmpty())
+		{
+			UE_LOG(LogCosmicRace, Warning, TEXT("ch.Race.AIOpponents: no free grid slot for computer driver %d of %d."), Index + 1, Requested);
+			break;
+		}
+		const int32 Slot = FreeGridSlots[0];
+		FreeGridSlots.RemoveAt(0);
+
+		ARaceVehicle* Vehicle = GetWorld()->SpawnActor<ARaceVehicle>(VehicleClass,
+			Starts[Slot]->GetActorLocation(), Starts[Slot]->GetActorRotation(), SpawnParameters);
+		ARaceAIController* Driver = Vehicle ? GetWorld()->SpawnActor<ARaceAIController>(SpawnParameters) : nullptr;
+		if (!Driver)
+		{
+			continue;
+		}
+		if (!Available.IsEmpty())
+		{
+			Vehicle->SetCharacter(Available[Index % Available.Num()]);
+		}
+		// The grid slot is the seed: the same slot always gets the same driver.
+		Driver->Configure(Difficulty, Slot);
+		Driver->Possess(Vehicle);
+	}
 }
 
 TArray<APlayerStart*> ARaceGameMode::GetSortedPlayerStarts() const

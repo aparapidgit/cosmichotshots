@@ -53,6 +53,16 @@ public:
 
 	FTrackFrame GetFrameAtDistance(float Distance) const;
 
+	/**
+	 * How sharply the track turns at a distance, in radians per cm, smoothed over a short stretch.
+	 * Positive = right-hand turn, negative = left-hand turn, 0 = straight. Corner radius = 1 / |curvature|.
+	 */
+	float GetCurvatureAtDistance(float Distance) const;
+
+	/** Half of the drivable track width in cm (centre line to wall). */
+	float GetHalfWidth() const { return HalfWidth; }
+	void SetHalfWidth(float InHalfWidth) { HalfWidth = InHalfWidth; }
+
 	/** Searches the whole loop. */
 	FTrackProjection Project(const FVector& Location) const;
 
@@ -75,5 +85,8 @@ private:
 	TArray<float> Distances;
 	/** Unit direction of each segment. */
 	TArray<FVector> Directions;
+	/** Signed curvature at each point (radians per cm, positive = right turn). */
+	TArray<float> Curvatures;
 	float LapLength = 0.f;
+	float HalfWidth = 1500.f;
 };

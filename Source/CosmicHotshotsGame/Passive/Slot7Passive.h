@@ -2,7 +2,7 @@
 // Every well-executed drift raises a chain level, and each level gives a small max-speed bonus.
 // A drift counts when it lasted long enough, reached a real slip angle, and ended without the
 // car losing control (overslide) and without a collision during it. A wall or car hit resets the
-// chain at once. Developer decisions: a counted drift lasts at least 2 seconds, and the chain
+// chain at once. Developer decisions: a counted drift lasts at least 1 second, and the chain
 // runs out when no new counted drift follows in time (the bonus then decays gradually).
 // A drift that does not count neither raises nor breaks the chain.
 
@@ -29,7 +29,7 @@ public:
 
 	/** A drift counts only when it lasted at least this long (s). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Slot7", meta = (ClampMin = "0.0"))
-	float MinDriftDuration = 2.f;
+	float MinDriftDuration = 1.f;
 
 	/** A drift counts only when it reached at least this slip angle (degrees). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Slot7", meta = (ClampMin = "0.0"))

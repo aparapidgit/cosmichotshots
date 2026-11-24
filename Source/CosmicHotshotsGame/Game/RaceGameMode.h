@@ -39,8 +39,22 @@ private:
 	/** Grid slot of a human player (join order; the first player's slot can be overridden with ch.Test.PlayerGridSlot). */
 	int32 GetPlayerGridSlot(int32 PlayerIndex, int32 NumSlots) const;
 
+	/** Grid slots (at most MaxGridSize) the human players did not take, front to back. */
+	TArray<int32> FindFreeGridSlots();
+
+	/**
+	 * Puts computer drivers on the free grid slots: one ARaceVehicle and one ARaceAIController each, with a
+	 * character nobody else drives. How many and how good comes from ch.Race.AIOpponents / ch.Race.AIDifficulty
+	 * until the race setup menu provides it.
+	 */
+	void SpawnAIOpponents();
+
 	/** PlayerStarts in grid order (sorted by name). */
 	TArray<class APlayerStart*> GetSortedPlayerStarts() const;
 
-	bool bTestDummyChecked = false;
+	/** Grid slots without a car yet, front to back. Filled once in the first tick. */
+	TArray<int32> FreeGridSlots;
+
+	/** The first tick has put the test cars and the computer drivers on the grid. */
+	bool bGridFilled = false;
 };

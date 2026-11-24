@@ -8,6 +8,7 @@
 #include "Engine/DeveloperSettings.h"
 #include "CosmicHotshotsSettings.generated.h"
 
+class UAIDifficultyData;
 class UCameraTuningData;
 class UCharacterDefinition;
 class UDrivingInputConfig;
@@ -28,6 +29,12 @@ public:
 	 */
 	const UCharacterDefinition* FindCharacter(const FString& IndexOrName) const;
 
+	/** Most vehicles on the grid, humans and computer drivers together. Menus, race setup, grid and AI all use this one value. */
+	static constexpr int32 MaxGridSize = 8;
+
+	/** Difficulty by index, clamped to the list; the class defaults of UAIDifficultyData when the list is empty. */
+	const UAIDifficultyData* GetAIDifficulty(int32 Index) const;
+
 	/** Playable characters, in roster order. Menus and dev commands read this list. */
 	UPROPERTY(Config, EditAnywhere, Category = "Characters")
 	TArray<TSoftObjectPtr<UCharacterDefinition>> Characters;
@@ -47,6 +54,14 @@ public:
 	/** Race rules (laps, overtake detection, gaps). Empty = class defaults of URaceTuningData. */
 	UPROPERTY(Config, EditAnywhere, Category = "Race")
 	TSoftObjectPtr<URaceTuningData> RaceTuning;
+
+	/** Difficulty levels of computer drivers, easiest first. */
+	UPROPERTY(Config, EditAnywhere, Category = "AI")
+	TArray<TSoftObjectPtr<UAIDifficultyData>> AIDifficulties;
+
+	/** Index into AIDifficulties used when a race does not say otherwise. */
+	UPROPERTY(Config, EditAnywhere, Category = "AI", meta = (ClampMin = "0"))
+	int32 DefaultAIDifficulty = 1;
 
 	/** Input actions and bindings used while driving. */
 	UPROPERTY(Config, EditAnywhere, Category = "Input")

@@ -281,6 +281,10 @@ void URaceTrackerComponent::AsyncPhysicsTickComponent(float DeltaTime, float Sim
 		View.Rank = Racer.Rank;
 		View.LapsCompleted = Racer.LapsCompleted;
 		View.Progress = Racer.Progress;
+		View.bHuman = Racer.bHuman;
+		View.TrackDistance = Racer.TrackDistance;
+		View.LateralOffset = Racer.LateralOffset;
+		View.ProgressSpeed = Racer.ProgressSpeed;
 		View.GapToCarAhead = Racer.GapToCarAhead;
 		NewestView.NumInRace += View.bInRace ? 1 : 0;
 	}

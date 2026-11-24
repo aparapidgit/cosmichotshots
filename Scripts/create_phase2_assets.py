@@ -7,6 +7,7 @@ Creates what is missing and never replaces what exists:
   /Game/Data/Passives/DA_Passive_<Name>        one per character: Sulgwen, Freya, Killjoke, Glick, Wilqis, Slot7, Slot8
   /Game/Data/Characters/DA_Character_<Name>    Spark (blue), Sulgwen (purple), Freya (red), Killjoke (green), Glick (yellow),
                                               Wilqis (white), Slot7 (orange), Slot8 (pink); each points at its passive
+  /Game/Data/AI/DA_AIDifficulty_<Level>       Easy, Normal, Hard: parameter sets of the computer drivers
 
 The project settings (Config/DefaultGame.ini, section CosmicHotshotsSettings) point at
 DA_RaceTuning_Default (RaceTuning=) and list the characters in the roster (+Characters=).
@@ -20,6 +21,20 @@ import unreal
 RACE_DATA_DIR = "/Game/Data/Race"
 PASSIVE_DATA_DIR = "/Game/Data/Passives"
 CHARACTER_DATA_DIR = "/Game/Data/Characters"
+AI_DATA_DIR = "/Game/Data/AI"
+
+# (asset, display name, values that differ from the class defaults of UAIDifficultyData). Placeholders to tune.
+AI_DIFFICULTIES = [
+    ("DA_AIDifficulty_Easy", "Easy", {
+        "top_speed_factor": 0.85, "corner_acceleration": 1300.0, "planned_braking": 1600.0,
+        "apex_offset": 400.0, "steering_speed": 4.0, "use_drift": False, "use_boost": False,
+        "rubber_band_catch_up": 0.05, "rubber_band_slow_down": 0.06}),
+    ("DA_AIDifficulty_Normal", "Normal", {}),
+    ("DA_AIDifficulty_Hard", "Hard", {
+        "top_speed_factor": 1.0, "corner_acceleration": 2400.0, "planned_braking": 2600.0,
+        "apex_offset": 900.0, "steering_speed": 8.0, "use_drift": True, "boost_min_charge": 0.2,
+        "rubber_band_catch_up": 0.03, "rubber_band_slow_down": 0.02}),
+]
 
 # (passive asset, passive class, display name)
 PASSIVES = [
@@ -83,6 +98,14 @@ def main():
             character.set_editor_property("colour", unreal.LinearColor(*colour))
             character.set_editor_property("passive_definition", passives[passive_name])
             unreal.EditorAssetLibrary.save_loaded_asset(character)
+
+    for name, display_name, values in AI_DIFFICULTIES:
+        difficulty, created = create_data_asset(AI_DATA_DIR, name, unreal.AIDifficultyData)
+        if created:
+            difficulty.set_editor_property("display_name", display_name)
+            for property_name, value in values.items():
+                difficulty.set_editor_property(property_name, value)
+            unreal.EditorAssetLibrary.save_loaded_asset(difficulty)
 
 
 main()

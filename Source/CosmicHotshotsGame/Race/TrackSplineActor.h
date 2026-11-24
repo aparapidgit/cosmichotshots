@@ -42,6 +42,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Track", meta = (ClampMin = "10.0"))
 	float TableSampleSpacing = 200.f;
 
+	/** Half of the drivable width (cm): centre line to the wall. The AI keeps its racing line inside it. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Track", meta = (ClampMin = "100.0"))
+	float TrackHalfWidth = 1500.f;
+
 private:
 	TSharedPtr<const FTrackSplineTable> Table;
 };

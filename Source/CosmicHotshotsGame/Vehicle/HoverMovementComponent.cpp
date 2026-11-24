@@ -68,7 +68,7 @@ namespace
 	constexpr double DriftChainSlowAfter = 2.0;
 	constexpr float DriftChainStartDistance = 33000.f;
 	constexpr float DriftChainStartWindow = 5000.f;
-	constexpr double DriftChainHold = 2.1;
+	constexpr double DriftChainHold = 1.4;
 	constexpr double DriftChainPause = 1.0;
 
 	/**
@@ -264,6 +264,21 @@ void UHoverMovementComponent::SetModifierComponents(UVehicleModifierComponent* I
 {
 	Modifiers = InModifiers;
 	Passive = InPassive;
+}
+
+void UHoverMovementComponent::SetStepInputSource(IVehicleStepInputSource* InSource)
+{
+	StepInputSource = InSource;
+	bStepBoostWasHeld = false;
+	bStepAbilityWasHeld = false;
+}
+
+void UHoverMovementComponent::ClearStepInputSource(const IVehicleStepInputSource* InSource)
+{
+	if (StepInputSource == InSource)
+	{
+		StepInputSource = nullptr;
+	}
 }
 
 void UHoverMovementComponent::SetInput(const FVehicleInputState& InInput)
@@ -601,6 +616,26 @@ void UHoverMovementComponent::AsyncPhysicsTickComponent(float DeltaTime, float S
 		bScriptedAbilityWasHeld = StepInput.bUseAbility;
 	}
 #endif
+
+	// A step driver (the AI) decides here, inside the physics step, so its race does not depend on the frame rate.
+	if (StepInputSource)
+	{
+		FVehicleStepInputContext InputContext;
+		InputContext.Location = FVector(Body->X());
+		InputContext.Rotation = FQuat(Body->R());
+		InputContext.Velocity = FVector(Body->V());
+		InputContext.DeltaTime = DeltaTime;
+		InputContext.SimTime = SimTime;
+		InputContext.ElapsedSimTime = ElapsedSimTime;
+		InputContext.State = &SimState;
+		InputContext.Modifiers = Modifiers ? &Modifiers->GetStack() : nullptr;
+
+		StepInput = StepInputSource->GetStepInput(InputContext);
+		bBoostPressed = StepInput.bBoost && !bStepBoostWasHeld;
+		bStepBoostWasHeld = StepInput.bBoost;
+		bAbilityPressed = StepInput.bUseAbility && !bStepAbilityWasHeld;
+		bStepAbilityWasHeld = StepInput.bUseAbility;
+	}
 
 	// Temporary bonuses first: run durations and fades, then let the passive react to the race state
 	// of the previous step. Impacts and the hover step below then use the resulting stats.

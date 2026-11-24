@@ -51,6 +51,7 @@ TSharedPtr<const FTrackSplineTable> ATrackSplineActor::GetTable()
 		Samples.Add(Spline->GetLocationAtDistanceAlongSpline(Length * Index / Count, ESplineCoordinateSpace::World));
 	}
 	NewTable->Build(MoveTemp(Samples));
+	NewTable->SetHalfWidth(TrackHalfWidth);
 
 	Table = NewTable;
 	return Table;

@@ -22,3 +22,12 @@ namespace CosmicHotshots::RaceCVars
 	/** 1 = draw the own car's passive state and its active modifiers (strength, time left) on the dev HUD. */
 	extern TAutoConsoleVariable<int32> DebugPassives;
 }
+
+namespace CosmicHotshots::RaceCVars
+{
+	/** Computer drivers put on the free grid slots (0..7) until the race setup menu exists. Read when the race starts. */
+	extern TAutoConsoleVariable<int32> AIOpponents;
+
+	/** Difficulty index of those computer drivers. Negative = the project default. */
+	extern TAutoConsoleVariable<int32> AIDifficulty;
+}

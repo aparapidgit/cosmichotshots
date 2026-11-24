@@ -14,6 +14,7 @@
 #include "Vehicle/HoverSim.h"
 #include "Vehicle/VehicleImpactSim.h"
 #include "Vehicle/VehicleInputState.h"
+#include "Vehicle/VehicleStepInput.h"
 #include "HoverMovementComponent.generated.h"
 
 namespace Chaos
@@ -49,6 +50,15 @@ public:
 
 	/** Latest driver intent. Called on the game thread by the owning vehicle. */
 	void SetInput(const FVehicleInputState& InInput);
+
+	/**
+	 * A driver that is asked for its input inside every physics step (the AI). While one is set, it
+	 * replaces the input from SetInput. The source must clear itself before it goes away.
+	 */
+	void SetStepInputSource(IVehicleStepInputSource* InSource);
+
+	/** Removes the step driver, if it is still the given one. */
+	void ClearStepInputSource(const IVehicleStepInputSource* InSource);
 
 	/**
 	 * Moves the impacts the physics steps applied since the last call into OutImpacts.
@@ -134,6 +144,11 @@ private:
 	int32 ImpactCounter = 0;
 
 	FVehicleInputState Input;
+
+	/** Step driver (AI), not owned. Null = the input from SetInput is used. */
+	IVehicleStepInputSource* StepInputSource = nullptr;
+	bool bStepBoostWasHeld = false;
+	bool bStepAbilityWasHeld = false;
 	FHoverSimState SimState;
 
 	// Impacts (see VehicleContactSubsystem.h and VehicleImpactSim.h)

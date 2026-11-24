@@ -9,6 +9,9 @@ namespace
 		const FVector Right = FVector::CrossProduct(FVector::UpVector, Direction).GetSafeNormal2D();
 		return Right.IsNearlyZero() ? FVector::RightVector : Right;
 	}
+
+	/** Heading change is measured between points this far before and after (cm). */
+	constexpr float CurvatureSmoothingDistance = 1000.f;
 }
 
 void FTrackSplineTable::Build(TArray<FVector> InPoints)
@@ -34,6 +37,24 @@ void FTrackSplineTable::Build(TArray<FVector> InPoints)
 	}
 	Distances.Add(Accumulated);
 	LapLength = Accumulated;
+
+	// Curvature: change of heading over a short stretch around each point, so sample noise does not show.
+	const int32 Num = Points.Num();
+	Curvatures.SetNumUninitialized(Num);
+	for (int32 Index = 0; Index < Num; ++Index)
+	{
+		const int32 Span = FMath::Clamp(FMath::RoundToInt32(CurvatureSmoothingDistance * Num / FMath::Max(LapLength, 1.f)), 1, Num / 2 - 1);
+		const FVector& Before = Directions[(Index - Span + Num) % Num];
+		const FVector& After = Directions[(Index + Span) % Num];
+		const float HeadingChange = FMath::FindDeltaAngleRadians(FMath::Atan2(Before.Y, Before.X), FMath::Atan2(After.Y, After.X));
+		const float Stretch = 2.f * Span * LapLength / Num;
+		Curvatures[Index] = Stretch > 0.f ? HeadingChange / Stretch : 0.f;
+	}
+}
+
+float FTrackSplineTable::GetCurvatureAtDistance(float Distance) const
+{
+	return IsValid() ? Curvatures[SegmentAtDistance(Distance)] : 0.f;
 }
 
 float FTrackSplineTable::WrapDistance(float Distance) const

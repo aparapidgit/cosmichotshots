@@ -1,6 +1,17 @@
 #include "Game/CosmicHotshotsSettings.h"
 
+#include "AI/AIDifficultyData.h"
 #include "Character/CharacterDefinition.h"
+
+const UAIDifficultyData* UCosmicHotshotsSettings::GetAIDifficulty(int32 Index) const
+{
+	if (AIDifficulties.IsEmpty())
+	{
+		return GetDefault<UAIDifficultyData>();
+	}
+	const UAIDifficultyData* Difficulty = AIDifficulties[FMath::Clamp(Index, 0, AIDifficulties.Num() - 1)].LoadSynchronous();
+	return Difficulty ? Difficulty : GetDefault<UAIDifficultyData>();
+}
 
 const UCharacterDefinition* UCosmicHotshotsSettings::FindCharacter(const FString& IndexOrName) const
 {

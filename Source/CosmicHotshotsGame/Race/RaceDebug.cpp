@@ -21,3 +21,14 @@ namespace CosmicHotshots::RaceCVars
 		TEXT("ch.Debug.Passives"), 0,
 		TEXT("1 = draw the own car's passive state and active modifiers (strength, time left) on the dev HUD."), ECVF_Cheat);
 }
+
+namespace CosmicHotshots::RaceCVars
+{
+	TAutoConsoleVariable<int32> AIOpponents(
+		TEXT("ch.Race.AIOpponents"), 0,
+		TEXT("Computer drivers put on the free grid slots (0..7). Read when the race starts; stands in for the race setup menu."), ECVF_Cheat);
+
+	TAutoConsoleVariable<int32> AIDifficulty(
+		TEXT("ch.Race.AIDifficulty"), -1,
+		TEXT("Difficulty index of the computer drivers (Project Settings > Cosmic Hotshots > AI). Negative = the project default."), ECVF_Cheat);
+}
