@@ -50,7 +50,7 @@ namespace CosmicHotshots::VehicleCVars
 	/** Test helper: take one screenshot at this simulation time (seconds). 0 = off. */
 	extern TAutoConsoleVariable<float> ScreenshotTime;
 
-	/** Test helper: ignore the driver and feed a fixed input sequence. 1 = drive test, 2 = drift and boost test, 3 = wall hit test. */
+	/** Test helper: ignore the driver and feed a fixed input sequence. 1 = drive test, 2 = drift and boost test, 3 = wall hit test, 4 = close pass, 5 = overtake, 6 = autopilot laps. */
 	extern TAutoConsoleVariable<int32> ScriptedInput;
 
 	/** Returns the console override when it is set (>= 0), otherwise the data asset value. */

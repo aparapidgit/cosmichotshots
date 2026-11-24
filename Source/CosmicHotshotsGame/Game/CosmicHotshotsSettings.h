@@ -11,6 +11,7 @@
 class UCameraTuningData;
 class UCharacterDefinition;
 class UDrivingInputConfig;
+class URaceTuningData;
 class UVehicleTuningData;
 
 UCLASS(Config = Game, DefaultConfig, meta = (DisplayName = "Cosmic Hotshots"))
@@ -42,6 +43,10 @@ public:
 	/** Tuning used by race cameras that have no tuning asset of their own. */
 	UPROPERTY(Config, EditAnywhere, Category = "Camera")
 	TSoftObjectPtr<UCameraTuningData> CameraTuning;
+
+	/** Race rules (laps, overtake detection, gaps). Empty = class defaults of URaceTuningData. */
+	UPROPERTY(Config, EditAnywhere, Category = "Race")
+	TSoftObjectPtr<URaceTuningData> RaceTuning;
 
 	/** Input actions and bindings used while driving. */
 	UPROPERTY(Config, EditAnywhere, Category = "Input")

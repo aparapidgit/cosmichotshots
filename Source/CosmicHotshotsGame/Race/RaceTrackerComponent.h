@@ -1,0 +1,97 @@
+// Race tracker component: runs FRaceTrackerSim in the fixed physics step.
+//
+// Lives on ARaceGameState. On the game thread it finds the track spline, turns the
+// checkpoint markers (TriggerBoxes tagged "Checkpoint" + "CP_<index>") into distances along
+// the line once (no overlap events: those arrive once per frame and would make laps depend
+// on the frame rate), and registers every ARaceVehicle it sees. In every physics step it
+// reads each car's body position, advances the race state and logs what happened with the
+// step's race time. After each frame the game state takes the newest snapshot and the
+// events and broadcasts them.
+//
+// Threading: the async physics tick may run off the game thread. Registration, the
+// published snapshot and the event list are handed over under a lock. The step state
+// itself (GetStepState) belongs to the physics step.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "Race/RaceTrackerSim.h"
+#include "RaceTrackerComponent.generated.h"
+
+class ARaceVehicle;
+class FTrackSplineTable;
+
+/** Snapshot of the race state for the game thread. */
+struct FRaceTrackerSnapshot
+{
+	TArray<FRacerSimState> Racers;
+	TArray<int32> RankOrder;
+	FRaceGap LeaderToSecondGap;
+	double RaceTime = 0.0;
+	int32 NumLaps = 0;
+	bool bRaceFinished = false;
+};
+
+UCLASS(ClassGroup = (Race))
+class COSMICHOTSHOTSGAME_API URaceTrackerComponent : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:
+	URaceTrackerComponent();
+
+	virtual void BeginPlay() override;
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	virtual void AsyncPhysicsTickComponent(float DeltaTime, float SimTime) override;
+
+	/** True when the level has a track spline, so the race is tracked. */
+	bool IsTracking() const { return Track.IsValid(); }
+
+	const TSharedPtr<const FTrackSplineTable>& GetTrack() const { return Track; }
+	const FRaceTrackerParams& GetParams() const { return Params; }
+
+	/** Driver id of a vehicle, INDEX_NONE when not registered. Game thread. */
+	int32 FindRacerId(const ARaceVehicle* Vehicle) const;
+	ARaceVehicle* GetRacerVehicle(int32 RacerId) const;
+
+	/**
+	 * Takes the newest snapshot and the events since the last call. Game thread.
+	 * Returns false when no physics step ran since the last call (snapshot unchanged).
+	 */
+	bool TakeUpdate(FRaceTrackerSnapshot& OutSnapshot, TArray<FRaceEvent>& OutEvents);
+
+	/**
+	 * Race state of the previous step, for code that runs inside the fixed physics step
+	 * (future passives). Reading it anywhere else is not safe.
+	 */
+	const FRaceTrackerState& GetStepState() const { return StepState; }
+
+private:
+	void BuildCheckpoints();
+	void RegisterNewVehicles();
+	void LogStep(const TArray<FRaceEvent>& Events);
+	void DrawDebug() const;
+	FString GetRacerName(int32 RacerId) const;
+
+	TSharedPtr<const FTrackSplineTable> Track;
+	FRaceTrackerParams Params;
+
+	/** Vehicles by driver id. Written on the game thread under the lock. */
+	TArray<TWeakObjectPtr<ARaceVehicle>> Vehicles;
+	/** Drivers registered on the game thread, added to the step state by the next step. */
+	TArray<bool> PendingHumanFlags;
+
+	/** Owned by the physics step. */
+	FRaceTrackerState StepState;
+	TArray<TOptional<FVector>> StepLocations;
+	TArray<FRaceEvent> StepEvents;
+	double NextLogTime = 0.0;
+
+	/** Handed to the game thread. */
+	FRaceTrackerSnapshot PublishedSnapshot;
+	TArray<FRaceEvent> PublishedEvents;
+	bool bSnapshotChanged = false;
+
+	mutable FCriticalSection Lock;
+};

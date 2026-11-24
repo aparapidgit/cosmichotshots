@@ -15,6 +15,11 @@
 #         .\Scripts\run_hover_test.ps1 -Fps 60 -Seconds 7.1 -LogInterval 0.5 -ExtraCmds "ch.Test.ScriptedInput 3,ch.Test.StartBoostCharge 1"
 # Close pass test (gap to the right wall shrinks, charging rises, then a touch locks it out):
 #         .\Scripts\run_hover_test.ps1 -Fps 60 -Seconds 8.1 -LogInterval 0.25 -ExtraCmds "ch.Test.ScriptedInput 4,ch.Test.StartBoostCharge 0"
+# Overtake test (straight past a dummy 30 m ahead, 5 m to the left: exactly one OVERTAKE line):
+#         .\Scripts\run_hover_test.ps1 -Fps 60 -Seconds 7.1 -LogInterval 0.5 -ExtraCmds "ch.Test.ScriptedInput 5,ch.Test.SpawnDummyAhead 3000,ch.Test.DummyLateralOffset -500"
+# Lap test (test autopilot drives one lap: checkpoints, LAP, FINISH, RACE_FINISHED):
+#         .\Scripts\run_hover_test.ps1 -Fps 60 -Seconds 90 -LogInterval 5 -TimeoutSeconds 900 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Race.Laps 1"
+# Race lines (LogCosmicRace) carry the race time of the physics step and must match at every frame rate too.
 # The Unreal editor must be closed.
 
 param(
@@ -23,7 +28,9 @@ param(
     [string]$EngineDir = "F:\UE 5.7\UE_5.7",
     [string]$Map = "/Game/Maps/TestTrack",
     [float]$LogInterval = 0.25,
-    [string]$ExtraCmds = ""
+    [string]$ExtraCmds = "",
+    # Wall-clock limit for the whole run; a full-lap test needs more than the default.
+    [int]$TimeoutSeconds = 240
 )
 
 $project = Join-Path (Split-Path $PSScriptRoot -Parent) "CosmicHotshotsGame.uproject"
@@ -41,9 +48,16 @@ $arguments = @(
     "`"$project`"", $Map, "-game", "-nullrhi", "-unattended", "-nosplash", "-nosound",
     "-benchmark", "-fps=$Fps", "-ExecCmds=`"$cmds`"", "-abslog=`"$log`""
 )
+# -ExecCmds only run at the END of the first frame, after that frame's physics steps (how many
+# depends on the frame rate). The test console variables are also set at startup through
+# -DPCVars, so helpers that act in the first frame (test dummy) see them at every frame rate.
+if ($ExtraCmds) {
+    $startupCvars = ($ExtraCmds -split ',' | ForEach-Object { $_.Trim() -replace '\s+', '=' }) -join ','
+    $arguments += "-DPCVars=`"$startupCvars`""
+}
 
 $process = Start-Process -FilePath $exe -ArgumentList $arguments -PassThru -WindowStyle Hidden
-if (-not $process.WaitForExit(240000)) {
+if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
     $process.Kill()
     Write-Output "TIMEOUT: process killed"
 }
@@ -52,7 +66,7 @@ else {
 }
 
 if (Test-Path $log) {
-    Select-String -Path $log -Pattern "LogCosmicVehicle|Assertion failed|Ensure condition failed|Fatal error" |
+    Select-String -Path $log -Pattern "LogCosmicVehicle|LogCosmicRace|Assertion failed|Ensure condition failed|Fatal error" |
         ForEach-Object { $_.Line -replace '^\[[^\]]*\]\[\s*\d+\]', '' }
 }
 else {

@@ -16,6 +16,8 @@ WHAT IT BUILDS (all engine basic cubes, no assets needed):
   - 8 PlayerStart actors on a 2x4 grid behind the start line.
   - Item box placeholders: 6 clusters of 3 cubes (tag "ItemBox") across the track.
     They are EMPTY placeholders; replace with the real AItemBox actor later.
+  - Race line: one TrackSplineActor through the centre line (point 0 = start line).
+    To add or refresh ONLY the race line in an existing map, run place_track_spline.py.
 Track layout: long start straight with a hill right after the line, wide
 sweeper, medium corner, S-kink, chicane, long left-hand return.
 
@@ -254,7 +256,32 @@ def build_in_unreal():
                 except Exception:
                     pass
 
+        place_track_spline(sub, pts)
+
     unreal.log("TestTrack: done. Check the World Outliner folder '%s'." % FOLDER)
+
+
+def place_track_spline(sub, pts):
+    """Replaces the race line actor (ATrackSplineActor) with one through the centre line points.
+    Spline point 0 = start/finish line, points in driving order, closed loop. Touches nothing else."""
+    for a in sub.get_all_level_actors():
+        if isinstance(a, unreal.TrackSplineActor):
+            sub.destroy_actor(a)
+
+    first = unreal.Vector(pts[0][0] * UU, pts[0][1] * UU, pts[0][2] * UU)
+    actor = sub.spawn_actor_from_class(unreal.TrackSplineActor, first, unreal.Rotator(0.0, 0.0, 0.0))
+    actor.set_actor_label("TrackSpline")
+    actor.set_folder_path(FOLDER + "/Race")
+    spline = actor.get_component_by_class(unreal.SplineComponent)
+    spline.clear_spline_points(False)
+    for x, y, z in pts:
+        spline.add_spline_point(unreal.Vector(x * UU, y * UU, z * UU),
+                                unreal.SplineCoordinateSpace.WORLD, False)
+    spline.set_closed_loop(True, False)
+    spline.update_spline()
+    unreal.log("TestTrack: track spline with %d points, length %.0f m"
+               % (spline.get_number_of_spline_points(), spline.get_spline_length() / UU))
+    return actor
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
-// Race game mode. Minimal for the Phase 1 prototype: spawns a race vehicle at a
-// PlayerStart. Race rules (laps, ranking, results) are added in Phase 2.
+// Race game mode: spawns a race vehicle at a PlayerStart. The race rules (laps,
+// ranking, overtakes, results) live in ARaceGameState and its URaceTrackerComponent.
 
 #pragma once
 
@@ -20,4 +20,15 @@ public:
 	 * so every run starts from the same place. Proper grid assignment comes with the race manager.
 	 */
 	virtual AActor* ChoosePlayerStart_Implementation(AController* Player) override;
+
+	virtual void Tick(float DeltaSeconds) override;
+
+private:
+	/**
+	 * Test helper (ch.Test.SpawnDummyAhead): spawns a stationary dummy car ahead of the first player's car.
+	 * Runs in the first pre-physics tick, before any physics step, so every frame rate gets the same race.
+	 */
+	void SpawnTestDummy();
+
+	bool bTestDummyChecked = false;
 };

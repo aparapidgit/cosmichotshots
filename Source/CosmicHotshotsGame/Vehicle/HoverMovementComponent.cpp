@@ -11,6 +11,8 @@
 #include "GameFramework/Pawn.h"
 #include "Vehicle/RaceVehicle.h"
 #include "PhysicsEngine/BodyInstance.h"
+#include "Race/TrackSplineActor.h"
+#include "Race/TrackSplineTable.h"
 #include "UnrealClient.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
 #include "Vehicle/VehicleDebug.h"
@@ -30,10 +32,21 @@ namespace
 	// How long the placeholder "ability used" message stays on screen.
 	constexpr float AbilityMessageSeconds = 2.f;
 
-	// Test helper: the dummy car is spawned once the player's car has settled.
-	constexpr double TestDummySpawnTime = 0.5;
-
 #if !UE_BUILD_SHIPPING
+	// Test helper: scripted mode 6 drives around the track line (GetAutopilotInput).
+	constexpr int32 AutopilotMode = 6;
+	constexpr double AutopilotSettleEnd = 1.0;
+	/** Cm ahead of the car's track position the autopilot aims at, plus speed x time. */
+	constexpr float AutopilotLookAheadBase = 1500.f;
+	constexpr float AutopilotLookAheadTime = 0.6f;
+	/** Angle to the aim point (degrees) that gives full steering lock. */
+	constexpr float AutopilotFullSteerAngle = 20.f;
+	/** Above this angle to the aim point the autopilot eases off the throttle. */
+	constexpr float AutopilotSlowAngle = 25.f;
+	constexpr float AutopilotSlowThrottle = 0.4f;
+	constexpr float AutopilotProjectionWindow = 3000.f;
+	constexpr float AutopilotReacquireDistance = 2500.f;
+
 	/**
 	 * Fixed input sequence for the headless frame-rate test (ch.Test.ScriptedInput 1).
 	 * Driven by simulation time, so every frame rate gets exactly the same input.
@@ -45,6 +58,17 @@ namespace
 		constexpr int32 DriftBoostMode = 2;
 		constexpr int32 WallHitMode = 3;
 		constexpr int32 ClosePassMode = 4;
+		constexpr int32 OvertakeMode = 5;
+		if (Mode == OvertakeMode)
+		{
+			// Mode 5: settle, then full throttle straight ahead (past a dummy car placed ahead and to the side).
+			constexpr double OvertakeSettleEnd = 1.0;
+			constexpr double OvertakeThrottleEnd = 7.0;
+
+			FVehicleInputState OvertakeScripted;
+			OvertakeScripted.Throttle = (SimTime >= OvertakeSettleEnd && SimTime < OvertakeThrottleEnd) ? 1.f : 0.f;
+			return OvertakeScripted;
+		}
 		if (Mode == DriftBoostMode)
 		{
 			return GetScriptedDriftBoostInput(SimTime);
@@ -170,6 +194,11 @@ UHoverMovementComponent::UHoverMovementComponent()
 void UHoverMovementComponent::BeginPlay()
 {
 	Super::BeginPlay();
+
+#if !UE_BUILD_SHIPPING
+	// Test helper: the autopilot (scripted mode 6) reads the track line inside the physics step.
+	AutopilotTrack = ATrackSplineActor::FindTable(GetWorld());
+#endif
 
 	// Enabled here, not in the constructor, so the physics step never sees a component that is not active yet.
 	SetAsyncPhysicsTickEnabled(true);
@@ -475,7 +504,7 @@ void UHoverMovementComponent::AsyncPhysicsTickComponent(float DeltaTime, float S
 	const int32 ScriptedMode = CosmicHotshots::VehicleCVars::ScriptedInput.GetValueOnGameThread();
 	if (ScriptedMode != 0 && IsOwnerPlayerControlled())
 	{
-		StepInput = GetScriptedTestInput(ScriptedMode, ElapsedSimTime);
+		StepInput = ScriptedMode == AutopilotMode ? GetAutopilotInput(*Body) : GetScriptedTestInput(ScriptedMode, ElapsedSimTime);
 		bBoostPressed = StepInput.bBoost && !bScriptedBoostWasHeld;
 		bScriptedBoostWasHeld = StepInput.bBoost;
 		bAbilityPressed = StepInput.bUseAbility && !bScriptedAbilityWasHeld;
@@ -506,6 +535,34 @@ void UHoverMovementComponent::AsyncPhysicsTickComponent(float DeltaTime, float S
 #endif
 
 	LogStep(DeltaTime);
+}
+
+FVehicleInputState UHoverMovementComponent::GetAutopilotInput(const Chaos::FRigidBodyHandle_Internal& Body)
+{
+	FVehicleInputState Autopilot;
+#if !UE_BUILD_SHIPPING
+	if (!AutopilotTrack.IsValid() || ElapsedSimTime < AutopilotSettleEnd)
+	{
+		return Autopilot;
+	}
+
+	const FVector Location(Body.X());
+	const FQuat Rotation(Body.R());
+	const FTrackProjection Projection = AutopilotDistance < 0.f
+		? AutopilotTrack->Project(Location)
+		: AutopilotTrack->ProjectNear(Location, AutopilotDistance, AutopilotProjectionWindow, AutopilotReacquireDistance);
+	AutopilotDistance = Projection.Distance;
+
+	const float Speed = FVector(Body.V()).Size();
+	const FVector AimPoint = AutopilotTrack->GetFrameAtDistance(
+		Projection.Distance + AutopilotLookAheadBase + Speed * AutopilotLookAheadTime).Location;
+	const FVector LocalAim = Rotation.UnrotateVector(AimPoint - Location);
+	const float AngleToAim = FMath::RadiansToDegrees(FMath::Atan2(LocalAim.Y, LocalAim.X));
+
+	Autopilot.Steer = FMath::Clamp(AngleToAim / AutopilotFullSteerAngle, -1.f, 1.f);
+	Autopilot.Throttle = FMath::Abs(AngleToAim) > AutopilotSlowAngle ? AutopilotSlowThrottle : 1.f;
+#endif
+	return Autopilot;
 }
 
 bool UHoverMovementComponent::IsOwnerPlayerControlled() const
@@ -567,26 +624,7 @@ void UHoverMovementComponent::RunTestHelpers()
 		}
 	}
 
-	const float DummyDistance = VehicleCVars::SpawnDummyAhead.GetValueOnGameThread();
-	if (DummyDistance > 0.f && !bTestDummySpawned && ElapsedSimTime >= TestDummySpawnTime)
-	{
-		bTestDummySpawned = true;
-
-		const AActor* Owner = GetOwner();
-		const FVector Location = Owner->GetActorLocation()
-			+ Owner->GetActorForwardVector() * DummyDistance
-			+ Owner->GetActorRightVector() * VehicleCVars::DummyLateralOffset.GetValueOnGameThread();
-
-		FActorSpawnParameters SpawnParameters;
-		SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		AActor* Dummy = GetWorld()->SpawnActor<AActor>(Owner->GetClass(), Location, Owner->GetActorRotation(), SpawnParameters);
-
-		const int32 DummyCharacterIndex = VehicleCVars::DummyCharacter.GetValueOnGameThread();
-		if (ARaceVehicle* DummyVehicle = Cast<ARaceVehicle>(Dummy); DummyVehicle && DummyCharacterIndex >= 0)
-		{
-			DummyVehicle->SetCharacter(Settings->FindCharacter(FString::FromInt(DummyCharacterIndex)));
-		}
-	}
+	// The dummy car (ch.Test.SpawnDummyAhead) is spawned by ARaceGameMode, before the first physics step.
 
 	const float ScreenshotTime = VehicleCVars::ScreenshotTime.GetValueOnGameThread();
 	if (ScreenshotTime > 0.f && !bTestScreenshotTaken && ElapsedSimTime >= ScreenshotTime)

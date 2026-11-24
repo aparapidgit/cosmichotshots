@@ -21,6 +21,7 @@ namespace Chaos
 	class FSingleParticlePhysicsProxy;
 }
 
+class FTrackSplineTable;
 class UPrimitiveComponent;
 class UVehicleStatsComponent;
 class UVehicleTuningData;
@@ -70,9 +71,21 @@ private:
 	/** Advances the simulation clock and writes the periodic state line to the log. Called from the physics step. */
 	void LogStep(float DeltaTime);
 
-	/** Dev-only test helpers (dummy car, screenshot, auto quit). Called from the normal game tick. */
+	/** Dev-only test helpers (test character, start boost, screenshot, auto quit). Called from the normal game tick. */
 	void RunTestHelpers();
 	void DrawDebug() const;
+
+	/**
+	 * Test helper (ch.Test.ScriptedInput 6): steers towards a point ahead on the track line at full
+	 * throttle, so a headless test can drive whole laps. Called from the physics step.
+	 * NOT the race AI: that gets its own controller in Phase 2.
+	 */
+	FVehicleInputState GetAutopilotInput(const Chaos::FRigidBodyHandle_Internal& Body);
+
+	/** Test helper: the track line for the autopilot. Immutable, safe to read in the physics step. */
+	TSharedPtr<const FTrackSplineTable> AutopilotTrack;
+	/** Test helper: the autopilot's last distance along the track line, negative = not placed yet. */
+	float AutopilotDistance = -1.f;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UPrimitiveComponent> UpdatedBody;
@@ -111,8 +124,6 @@ private:
 	/** Test helper (ch.Test.PlayerCharacter): the test character has been applied. */
 	bool bTestCharacterApplied = false;
 
-	/** Test helper (ch.Test.SpawnDummyAhead): the dummy car has been spawned. */
-	bool bTestDummySpawned = false;
 
 	/** Test helper (ch.Test.ScreenshotTime): the one screenshot has been requested. */
 	bool bTestScreenshotTaken = false;
