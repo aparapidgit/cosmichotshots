@@ -44,6 +44,9 @@ public:
 	/** Takes boost fluid out of the meter (a share of the full meter, 0..1). The meter never goes below zero. */
 	void RemoveBoostCharge(float Amount);
 
+	/** Touching or hitting a wall or object: no close-pass charging for a short time (ClosePassHitLockout). */
+	void BlockClosePassCharging();
+
 	/** State of the last physics step (for debug display and, later, HUD/VFX). */
 	const FHoverSimState& GetSimState() const { return SimState; }
 

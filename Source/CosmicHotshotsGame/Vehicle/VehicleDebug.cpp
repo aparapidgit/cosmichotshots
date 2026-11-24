@@ -90,5 +90,5 @@ namespace CosmicHotshots::VehicleCVars
 
 	TAutoConsoleVariable<int32> ScriptedInput(
 		TEXT("ch.Test.ScriptedInput"), 0,
-		TEXT("Test helper: ignore the driver and feed a fixed input sequence. 1 = drive test, 2 = drift and boost test, 3 = wall hit test."), ECVF_Cheat);
+		TEXT("Test helper: ignore the driver and feed a fixed input sequence. 1 = drive test, 2 = drift and boost test, 3 = wall hit test, 4 = close pass along a wall."), ECVF_Cheat);
 }

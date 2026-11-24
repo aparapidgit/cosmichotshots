@@ -208,6 +208,57 @@ void FHoverSim::Step(
 		const double SlideAmount = FMath::Clamp(FMath::Abs(SlipAngle) / Params.DriftFullChargeSlipAngle, 0.0, 1.0);
 		DriftBoost.BoostCharge += static_cast<float>(Params.DriftChargeRate * SlideAmount * DeltaTime);
 	}
+
+	// ------------------------------------------------------------- Close pass
+	// One sweep to each side from the body's centre measures the gap between the side of the body
+	// and the nearest wall or obstacle (the trace only sees geometry that blocks vehicles, never
+	// other cars). Driving fast close to it fills the meter; closer = faster. Touching it (here, or
+	// a hit reported by the impact component) stops charging for a moment, so scraping pays nothing.
+	OutState.WallClearance = -1.f;
+	const double ProbeReach = Params.BodyHalfWidth + Params.ClosePassMaxDistance;
+	for (int32 Side = 0; Side < FHoverSimState::NumWallProbes; ++Side)
+	{
+		FWallProbeState& Probe = OutState.WallProbes[Side];
+		const double SideSign = Side == 0 ? -1.0 : 1.0;
+		Probe.Start = Location;
+		Probe.End = Location + Right * (SideSign * (ProbeReach - Params.ClosePassTraceRadius));
+		Probe.Clearance = -1.f;
+
+		float Distance = 0.f;
+		if (Trace(Probe.Start, Probe.End, Params.ClosePassTraceRadius, Distance))
+		{
+			// The sphere centre stopped Distance from the body's centre; the wall is one radius further.
+			Probe.Clearance = static_cast<float>(FMath::Max(Distance + Params.ClosePassTraceRadius - Params.BodyHalfWidth, 0.0));
+			if (OutState.WallClearance < 0.f || Probe.Clearance < OutState.WallClearance)
+			{
+				OutState.WallClearance = Probe.Clearance;
+			}
+		}
+	}
+
+	const bool bWallInReach = OutState.WallClearance >= 0.f;
+	if (bWallInReach && OutState.WallClearance <= Params.ClosePassContactDistance)
+	{
+		DriftBoost.ClosePassLockoutRemaining = FMath::Max(DriftBoost.ClosePassLockoutRemaining, Params.ClosePassHitLockout);
+	}
+	else
+	{
+		DriftBoost.ClosePassLockoutRemaining = FMath::Max(DriftBoost.ClosePassLockoutRemaining - DeltaTime, 0.f);
+	}
+
+	DriftBoost.bClosePassCharging = false;
+	if (bWallInReach && bGrounded && ForwardSpeed >= Params.ClosePassMinSpeed && DriftBoost.ClosePassLockoutRemaining <= 0.f)
+	{
+		// 0 at the far edge of the range, 1 at the full-rate distance or closer.
+		const double RangeLength = FMath::Max(static_cast<double>(Params.ClosePassMaxDistance - Params.ClosePassFullDistance), UE_DOUBLE_KINDA_SMALL_NUMBER);
+		const double Closeness = FMath::Clamp((Params.ClosePassMaxDistance - OutState.WallClearance) / RangeLength, 0.0, 1.0);
+		if (Closeness > 0.0)
+		{
+			DriftBoost.BoostCharge += static_cast<float>(Params.ClosePassChargeRate * Closeness * DeltaTime);
+			DriftBoost.bClosePassCharging = true;
+		}
+	}
+
 	if (Params.bInfiniteBoost)
 	{
 		DriftBoost.BoostCharge = FDriftBoostState::MaxBoostCharge;
@@ -232,7 +283,7 @@ void FHoverSim::Step(
 		// Starting costs a little and needs a minimum charge, so tapping the button cannot farm the kick.
 		// Only a new press starts a boost: a button kept held after the meter ran dry (or pressed while
 		// it was too low) starts nothing, even once drifting refills the meter.
-		if (bBoostPressed &&DriftBoost.BoostCharge >= FMath::Max(Params.BoostMinStartCharge, Params.BoostStartCost))
+		if (bBoostPressed && DriftBoost.BoostCharge >= FMath::Max(Params.BoostMinStartCharge, Params.BoostStartCost))
 		{
 			DriftBoost.bBoosting = true;
 			DriftBoost.BoostCharge -= Params.BoostStartCost;

@@ -66,7 +66,7 @@ void UVehicleImpactComponent::StartCooldown(const AActor* OtherActor)
 
 void UVehicleImpactComponent::HandleBodyHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, FVector NormalImpulse, const FHitResult& Hit)
 {
-	if (!Body || !Tuning || !OtherActor || OtherActor == GetOwner() || IsOnCooldown(OtherActor))
+	if (!Body || !Tuning || !OtherActor || OtherActor == GetOwner())
 	{
 		return;
 	}
@@ -79,6 +79,19 @@ void UVehicleImpactComponent::HandleBodyHit(UPrimitiveComponent* HitComponent, A
 	}
 
 	ARaceVehicle* OtherVehicle = Cast<ARaceVehicle>(OtherActor);
+
+	// Any touch of a wall or object, however light and even during the impact cooldown, stops
+	// close-pass charging for a moment: scraping along the barrier must never pay.
+	if (!OtherVehicle && Movement && FMath::Abs(Normal.Z) < GroundNormalZ)
+	{
+		Movement->BlockClosePassCharging();
+	}
+
+	if (IsOnCooldown(OtherActor))
+	{
+		return;
+	}
+
 	const FVector AwayFromOther = OtherVehicle
 		? Body->GetComponentLocation() - OtherVehicle->GetActorLocation()
 		: Body->GetComponentLocation() - Hit.ImpactPoint;

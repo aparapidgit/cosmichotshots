@@ -82,8 +82,9 @@ void ARaceDebugHUD::DrawHUD()
 
 	const TCHAR* DriftLabel = !DriftBoost.bDrifting ? TEXT("") : (DriftBoost.DriftDirection > 0.f ? TEXT("   DRIFT >") : TEXT("   < DRIFT"));
 	const TCHAR* BoostLabel = DriftBoost.IsBoosting() ? TEXT("   BOOSTING") : TEXT("");
-	const FString Label = FString::Printf(TEXT("BOOST %d%%  (%d/%d)%s%s"),
-		FMath::RoundToInt(Charge * 100.f), FullSegments, Segments, BoostLabel, DriftLabel);
+	const TCHAR* ClosePassLabel = DriftBoost.bClosePassCharging ? TEXT("   CLOSE PASS") : TEXT("");
+	const FString Label = FString::Printf(TEXT("BOOST %d%%  (%d/%d)%s%s%s"),
+		FMath::RoundToInt(Charge * 100.f), FullSegments, Segments, BoostLabel, DriftLabel, ClosePassLabel);
 	DrawText(Label, FLinearColor::White, Left, Top + Height + LabelGap);
 #endif
 }

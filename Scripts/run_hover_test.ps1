@@ -13,6 +13,8 @@
 #         .\Scripts\run_hover_test.ps1 -Fps 60 -Seconds 7.1 -LogInterval 0.5 -ExtraCmds "ch.Test.ScriptedInput 2,ch.Test.StartBoostCharge 0.4"
 # Wall hit test (impact reaction and boost loss):
 #         .\Scripts\run_hover_test.ps1 -Fps 60 -Seconds 7.1 -LogInterval 0.5 -ExtraCmds "ch.Test.ScriptedInput 3,ch.Test.StartBoostCharge 1"
+# Close pass test (gap to the right wall shrinks, charging rises, then a touch locks it out):
+#         .\Scripts\run_hover_test.ps1 -Fps 60 -Seconds 8.1 -LogInterval 0.25 -ExtraCmds "ch.Test.ScriptedInput 4,ch.Test.StartBoostCharge 0"
 # The Unreal editor must be closed.
 
 param(

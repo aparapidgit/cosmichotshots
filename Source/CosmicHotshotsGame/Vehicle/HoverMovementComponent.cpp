@@ -42,6 +42,7 @@ namespace
 	{
 		constexpr int32 DriftBoostMode = 2;
 		constexpr int32 WallHitMode = 3;
+		constexpr int32 ClosePassMode = 4;
 		if (Mode == DriftBoostMode)
 		{
 			return GetScriptedDriftBoostInput(SimTime);
@@ -62,6 +63,24 @@ namespace
 				WallScripted.Steer = (SimTime >= WallTurnStart && SimTime < WallTurnEnd) ? WallTurnSteer : 0.f;
 			}
 			return WallScripted;
+		}
+		if (Mode == ClosePassMode)
+		{
+			// Mode 4: accelerate, turn a little to the right, then hold the wheel straight so the car
+			// closes in on the right-hand wall slowly (close-pass charging rises) until it touches it.
+			constexpr double PassSettleEnd = 1.0;
+			constexpr double PassTurnStart = 3.0;
+			constexpr double PassTurnEnd = 3.3;
+			constexpr double PassThrottleEnd = 8.0;
+			constexpr float PassTurnSteer = 0.15f;
+
+			FVehicleInputState PassScripted;
+			if (SimTime >= PassSettleEnd && SimTime < PassThrottleEnd)
+			{
+				PassScripted.Throttle = 1.f;
+				PassScripted.Steer = (SimTime >= PassTurnStart && SimTime < PassTurnEnd) ? PassTurnSteer : 0.f;
+			}
+			return PassScripted;
 		}
 
 		constexpr double SettleEnd = 1.0;
@@ -188,6 +207,15 @@ void UHoverMovementComponent::ApplyControlLoss(float Duration)
 	SimState.ControlLossTimeRemaining = FMath::Max(SimState.ControlLossTimeRemaining, Duration);
 }
 
+void UHoverMovementComponent::BlockClosePassCharging()
+{
+	// Game thread; see ApplyControlLoss.
+	if (Tuning)
+	{
+		SimState.DriftBoost.ClosePassLockoutRemaining = FMath::Max(SimState.DriftBoost.ClosePassLockoutRemaining, Tuning->ClosePassHitLockout);
+	}
+}
+
 void UHoverMovementComponent::RemoveBoostCharge(float Amount)
 {
 	// Game thread; see ApplyControlLoss.
@@ -248,6 +276,15 @@ FHoverSimParams UHoverMovementComponent::BuildSimParams() const
 	Params.DriftRecoveryTime = Tuning->DriftRecoveryTime;
 	Params.OverslideGripMultiplier = Tuning->OverslideGripMultiplier;
 	Params.OverslideSteerMultiplier = Tuning->OverslideSteerMultiplier;
+
+	Params.BodyHalfWidth = Tuning->BodySize.Y * 0.5f;
+	Params.ClosePassMinSpeed = Tuning->ClosePassMinSpeedKmh * KmhToCmPerSecond;
+	Params.ClosePassMaxDistance = Tuning->ClosePassMaxDistance;
+	Params.ClosePassFullDistance = FMath::Min(Tuning->ClosePassFullDistance, Tuning->ClosePassMaxDistance);
+	Params.ClosePassContactDistance = Tuning->ClosePassContactDistance;
+	Params.ClosePassChargeRate = Tuning->ClosePassChargeRate;
+	Params.ClosePassHitLockout = Tuning->ClosePassHitLockout;
+	Params.ClosePassTraceRadius = FMath::Min(Tuning->ClosePassTraceRadius, Tuning->BodySize.Y * 0.5f);
 
 	Params.BoostSegments = Tuning->BoostSegments;
 	Params.BoostDrainRate = Tuning->BoostDrainRate;
@@ -406,12 +443,13 @@ void UHoverMovementComponent::LogStep(float DeltaTime)
 	{
 		NextLogTime = ElapsedSimTime + LogInterval;
 		UE_LOG(LogCosmicVehicle, Log,
-			TEXT("VEHICLE %s t=%.3f dt=%.5f height=%.2f kmh=%.2f lateral=%.1f yawRate=%.2f yaw=%.2f slip=%.2f x=%.0f y=%.0f z=%.1f grounded=%d drift=%d overslide=%.2f charge=%.3f boost=%d"),
+			TEXT("VEHICLE %s t=%.3f dt=%.5f height=%.2f kmh=%.2f lateral=%.1f yawRate=%.2f yaw=%.2f slip=%.2f x=%.0f y=%.0f z=%.1f grounded=%d drift=%d overslide=%.2f charge=%.3f boost=%d wall=%.0f closePass=%d lockout=%.2f"),
 			*GetNameSafe(GetOwner()), ElapsedSimTime, SimState.DeltaTime, SimState.AverageHeight,
 			SimState.ForwardSpeed * CmPerSecondToKmh, SimState.LateralSpeed, SimState.YawRate, SimState.Yaw, SimState.SlipAngle,
 			SimState.Location.X, SimState.Location.Y, SimState.Location.Z,
 			SimState.bGrounded ? 1 : 0,
-			SimState.DriftBoost.bDrifting ? 1 : 0, SimState.DriftBoost.OverslideTimeRemaining, SimState.DriftBoost.BoostCharge, SimState.DriftBoost.bBoosting ? 1 : 0);
+			SimState.DriftBoost.bDrifting ? 1 : 0, SimState.DriftBoost.OverslideTimeRemaining, SimState.DriftBoost.BoostCharge, SimState.DriftBoost.bBoosting ? 1 : 0,
+			SimState.WallClearance, SimState.DriftBoost.bClosePassCharging ? 1 : 0, SimState.DriftBoost.ClosePassLockoutRemaining);
 	}
 #endif
 }
@@ -515,16 +553,26 @@ void UHoverMovementComponent::DrawDebug() const
 		Compressions += FString::Printf(TEXT(" %.1f"), Point.Compression);
 	}
 
+	// Close-pass sweeps: grey = no wall in reach, green = wall in reach, red = touching / locked out.
+	for (const FWallProbeState& Probe : SimState.WallProbes)
+	{
+		const bool bLocked = SimState.DriftBoost.ClosePassLockoutRemaining > 0.f;
+		const FColor Color = Probe.Clearance < 0.f ? FColor::Silver : (bLocked ? FColor::Red : FColor::Green);
+		DrawDebugLine(World, Probe.Start, Probe.End, Color);
+	}
+
 	if (GEngine)
 	{
 		const FString Text = FString::Printf(
-			TEXT("%s\nSpeed: %.0f km/h   Sideways: %.0f cm/s   Slip angle: %.1f deg\nTurn rate: %.0f deg/s\nInput: throttle %.2f  brake %.2f  steer %.2f  drift %s  boost %d\nDrift: %s   Boost meter: %.0f%%   Boosting: %s\nHeight: %.1f cm   Grounded: %s (%d points)\nCompression (cm):%s\nPhysics step: %.2f ms"),
+			TEXT("%s\nSpeed: %.0f km/h   Sideways: %.0f cm/s   Slip angle: %.1f deg\nTurn rate: %.0f deg/s\nInput: throttle %.2f  brake %.2f  steer %.2f  drift %s  boost %d\nDrift: %s   Boost meter: %.0f%%   Boosting: %s\nWall gap: %.0f cm   Close pass: %s\nHeight: %.1f cm   Grounded: %s (%d points)\nCompression (cm):%s\nPhysics step: %.2f ms"),
 			*GetNameSafe(GetOwner()),
 			SimState.ForwardSpeed * CmPerSecondToKmh, SimState.LateralSpeed, SimState.SlipAngle,
 			SimState.YawRate,
 			Input.Throttle, Input.Brake, Input.Steer, Input.bDriftLeft ? TEXT("L") : (Input.bDriftRight ? TEXT("R") : TEXT("-")), Input.bBoost ? 1 : 0,
 			SimState.DriftBoost.IsOversliding() ? TEXT("LOST CONTROL") : !SimState.DriftBoost.bDrifting ? TEXT("no") : (SimState.DriftBoost.DriftDirection > 0.f ? TEXT("RIGHT") : TEXT("LEFT")),
 			SimState.DriftBoost.BoostCharge * 100.f, SimState.DriftBoost.bBoosting ? TEXT("yes") : TEXT("no"),
+			SimState.WallClearance,
+			SimState.DriftBoost.bClosePassCharging ? TEXT("CHARGING") : (SimState.DriftBoost.ClosePassLockoutRemaining > 0.f ? TEXT("locked (wall contact)") : TEXT("no")),
 			SimState.AverageHeight,
 			SimState.bGrounded ? TEXT("yes") : TEXT("no"), SimState.PointsOverGround,
 			*Compressions,

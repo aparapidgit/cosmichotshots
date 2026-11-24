@@ -73,6 +73,17 @@ struct FHoverSimParams
 	float OverslideGripMultiplier = 1.f;
 	float OverslideSteerMultiplier = 1.f;
 
+	// Close pass (distances in cm, speed in cm/s)
+	/** Half the body width: the sideways sweeps measure the gap from the body's side. */
+	float BodyHalfWidth = 0.f;
+	float ClosePassMinSpeed = 0.f;
+	float ClosePassMaxDistance = 0.f;
+	float ClosePassFullDistance = 0.f;
+	float ClosePassContactDistance = 0.f;
+	float ClosePassChargeRate = 0.f;
+	float ClosePassHitLockout = 0.f;
+	float ClosePassTraceRadius = 1.f;
+
 	// Boost (the meter goes from 0 to MaxBoostCharge)
 	/** Number of equal segments the meter is divided into. The active ability spends one whole segment. */
 	int32 BoostSegments = 1;
@@ -142,15 +153,35 @@ struct FDriftBoostState
 	int32 BoostCount = 0;
 	/** Number of times the active ability button spent a segment. An ability system reacts to this. */
 	int32 AbilityUseCount = 0;
+	/** Seconds left without close-pass charging after touching or hitting a wall or object. */
+	float ClosePassLockoutRemaining = 0.f;
+	/** True when the last step charged the meter from a close pass. */
+	bool bClosePassCharging = false;
 
 	bool IsBoosting() const { return bBoosting; }
 	bool IsOversliding() const { return OverslideTimeRemaining > 0.f; }
 };
 
+/** One sideways sweep that measures the gap to a wall (debug and HUD). */
+struct FWallProbeState
+{
+	FVector Start = FVector::ZeroVector;
+	FVector End = FVector::ZeroVector;
+	/** Gap between the side of the body and the wall in cm. Negative = no wall within reach. */
+	float Clearance = -1.f;
+};
+
 /** Result of the last physics step. */
 struct FHoverSimState
 {
+	static constexpr int32 NumWallProbes = 2;
+
 	FDriftBoostState DriftBoost;
+
+	/** Sideways sweeps: [0] = left, [1] = right. */
+	FWallProbeState WallProbes[NumWallProbes];
+	/** Smallest gap to a wall on either side in cm. Negative = no wall within reach. */
+	float WallClearance = -1.f;
 
 	/** Seconds of reduced grip and steering left after a strong hit. Carries over between steps like DriftBoost. */
 	float ControlLossTimeRemaining = 0.f;

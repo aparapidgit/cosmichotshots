@@ -295,6 +295,38 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drift", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float OverslideSteerMultiplier = 0.3f;
 
+	// ---------------------------------------------------------- Close pass
+	// Driving fast right next to a wall or obstacle (without touching it) fills the boost meter.
+	// Closer = faster. Touching or hitting the wall stops it for a moment, so scraping pays nothing.
+
+	/** Below this forward speed a close pass gives nothing. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Close Pass", meta = (ClampMin = "0.0"))
+	float ClosePassMinSpeedKmh = 120.f;
+
+	/** Gap (cm) between the side of the body and the wall at which charging starts (slowly). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Close Pass", meta = (ClampMin = "1.0"))
+	float ClosePassMaxDistance = 150.f;
+
+	/** Gap (cm) at or below which charging runs at the full rate. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Close Pass", meta = (ClampMin = "0.0"))
+	float ClosePassFullDistance = 40.f;
+
+	/** Gap (cm) that counts as touching the wall: no charge, and the lockout below starts. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Close Pass", meta = (ClampMin = "0.0"))
+	float ClosePassContactDistance = 5.f;
+
+	/** Boost meter gained per second at the full rate (the meter goes from 0 to 1). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Close Pass", meta = (ClampMin = "0.0"))
+	float ClosePassChargeRate = 0.10f;
+
+	/** Seconds without close-pass charging after touching or hitting a wall or object. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Close Pass", meta = (ClampMin = "0.0"))
+	float ClosePassHitLockout = 0.75f;
+
+	/** Radius (cm) of the sideways sweeps that measure the gap. Must stay below the body's height above the ground. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Close Pass", meta = (ClampMin = "1.0"))
+	float ClosePassTraceRadius = 20.f;
+
 	// --------------------------------------------------------------- Boost
 
 	/**
