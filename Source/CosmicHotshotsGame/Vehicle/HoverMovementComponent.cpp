@@ -62,6 +62,9 @@ namespace
 	constexpr float AutopilotReverseDuration = 1.2f;
 
 	// Test helper: scripted mode 8 (drift chain). Distances along the track line in cm, times in seconds.
+	/** Seconds between DRIVE summary lines of a human's car. */
+	constexpr float DriveSummaryInterval = 10.f;
+
 	constexpr int32 DriftChainMode = 8;
 
 	// Test helper: scripted mode 9 (autopilot that presses the use-item button every so many seconds).
@@ -729,6 +732,33 @@ void UHoverMovementComponent::AsyncPhysicsTickComponent(float DeltaTime, float S
 	const int32 AbilityUsesBefore = SimState.DriftBoost.AbilityUseCount;
 
 	FHoverSim::Step(*Body, BuildSimParams(), StepInput, bBoostPressed, bAbilityPressed, Trace, DeltaTime, SimState);
+	LastStepInput = StepInput;
+
+#if !UE_BUILD_SHIPPING
+	// Driving summary of a human's car, so a "my car feels slow" report can be checked against numbers:
+	// what the car was really given (throttle, brake, steering) and how fast it went.
+	if (IsOwnerPlayerControlled() && !bRaceLocked)
+	{
+		DriveSummary.Steps += 1;
+		DriveSummary.Throttle += StepInput.Throttle;
+		DriveSummary.Brake += StepInput.Brake;
+		DriveSummary.Steer += FMath::Abs(StepInput.Steer);
+		DriveSummary.Speed += SimState.ForwardSpeed;
+		DriveSummary.MaxSpeed = FMath::Max(DriveSummary.MaxSpeed, SimState.ForwardSpeed);
+		DriveSummary.DriftSteps += SimState.DriftBoost.bDrifting ? 1 : 0;
+		DriveSummary.BoostSteps += SimState.DriftBoost.bBoosting ? 1 : 0;
+		DriveSummary.Time += DeltaTime;
+		if (DriveSummary.Time >= DriveSummaryInterval)
+		{
+			const float Steps = static_cast<float>(DriveSummary.Steps);
+			UE_LOG(LogCosmicVehicle, Log, TEXT("DRIVE %s t=%.3f avgKmh=%.1f maxKmh=%.1f throttle=%.2f brake=%.2f steer=%.2f drift=%.0f%% boost=%.0f%% topSpeedKmh=%.1f"),
+				*GetNameSafe(GetOwner()), ElapsedSimTime + DeltaTime, DriveSummary.Speed / Steps * CmPerSecondToKmh, DriveSummary.MaxSpeed * CmPerSecondToKmh,
+				DriveSummary.Throttle / Steps, DriveSummary.Brake / Steps, DriveSummary.Steer / Steps,
+				100.f * DriveSummary.DriftSteps / Steps, 100.f * DriveSummary.BoostSteps / Steps, Stats ? Stats->GetMaxSpeedKmh() : 0.f);
+			DriveSummary = FDriveSummary();
+		}
+	}
+#endif
 	bBoostPressedLatch = false;
 	bAbilityPressedLatch = false;
 

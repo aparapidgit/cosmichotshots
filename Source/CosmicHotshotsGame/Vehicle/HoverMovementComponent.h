@@ -82,6 +82,9 @@ public:
 	/** State of the last physics step (for debug display and, later, HUD/VFX). */
 	const FHoverSimState& GetSimState() const { return SimState; }
 
+	/** The input the last physics step really used (human, AI or scripted), for debug display. */
+	const FVehicleInputState& GetLastStepInput() const { return LastStepInput; }
+
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void AsyncPhysicsTickComponent(float DeltaTime, float SimTime) override;
@@ -151,6 +154,22 @@ private:
 	int32 ImpactCounter = 0;
 
 	FVehicleInputState Input;
+	FVehicleInputState LastStepInput;
+
+	/** Running totals for the DRIVE summary log line of a human's car (dev builds). */
+	struct FDriveSummary
+	{
+		int32 Steps = 0;
+		int32 DriftSteps = 0;
+		int32 BoostSteps = 0;
+		float Throttle = 0.f;
+		float Brake = 0.f;
+		float Steer = 0.f;
+		float Speed = 0.f;
+		float MaxSpeed = 0.f;
+		float Time = 0.f;
+	};
+	FDriveSummary DriveSummary;
 
 	/** Step driver (AI), not owned. Null = the input from SetInput is used. */
 	IVehicleStepInputSource* StepInputSource = nullptr;

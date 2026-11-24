@@ -36,6 +36,7 @@ namespace
 	const FLinearColor FullSegmentColour(1.f, 0.8f, 0.15f, 0.95f);
 	const FLinearColor BoostingColour(1.f, 0.35f, 0.1f, 0.95f);
 	const FLinearColor TickColour(1.f, 1.f, 1.f, 0.8f);
+	constexpr float HudCmPerSecondToKmh = 3600.f / 100000.f;
 
 	// Race standings table (top left).
 	constexpr float TableLeftFraction = 0.02f;
@@ -108,8 +109,12 @@ void ARaceDebugHUD::DrawHUD()
 	const TCHAR* DriftLabel = !DriftBoost.bDrifting ? TEXT("") : (DriftBoost.DriftDirection > 0.f ? TEXT("   DRIFT >") : TEXT("   < DRIFT"));
 	const TCHAR* BoostLabel = DriftBoost.IsBoosting() ? TEXT("   BOOSTING") : TEXT("");
 	const TCHAR* ClosePassLabel = DriftBoost.bClosePassCharging ? TEXT("   CLOSE PASS") : TEXT("");
-	const FString Label = FString::Printf(TEXT("BOOST %d%%  (%d/%d)%s%s%s"),
-		FMath::RoundToInt(Charge * 100.f), FullSegments, Segments, BoostLabel, DriftLabel, ClosePassLabel);
+	// Speed and the input the car really got: the first thing to look at when the car feels slow.
+	const FHoverSimState& SimState = Vehicle->GetHoverMovement()->GetSimState();
+	const FVehicleInputState& StepInput = Vehicle->GetHoverMovement()->GetLastStepInput();
+	const FString Label = FString::Printf(TEXT("BOOST %d%%  (%d/%d)%s%s%s      %.0f / %.0f km/h   throttle %.2f  brake %.2f  steer %+.2f"),
+		FMath::RoundToInt(Charge * 100.f), FullSegments, Segments, BoostLabel, DriftLabel, ClosePassLabel,
+		SimState.ForwardSpeed * HudCmPerSecondToKmh, Vehicle->GetStats()->GetMaxSpeedKmh(), StepInput.Throttle, StepInput.Brake, StepInput.Steer);
 	DrawText(Label, FLinearColor::White, Left, Top + Height + LabelGap);
 #endif
 }
