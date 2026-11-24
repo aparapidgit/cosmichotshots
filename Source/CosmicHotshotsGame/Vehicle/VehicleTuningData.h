@@ -118,6 +118,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact", meta = (ClampMin = "1.0"))
 	float WallHardHitSpeed = 1500.f;
 
+	/**
+	 * Share of the full boost meter (0..1) lost in the weakest wall or object hit that counts
+	 * (one just above MinImpactSpeed). Applied once per hit.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float WallBoostLossMin = 0.10f;
+
+	/** Share of the full boost meter lost in a hard wall or object hit (WallHardHitSpeed or more). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Impact", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float WallBoostLossMax = 0.20f;
+
 	// --------------------------------------------------------------- Hover
 
 	/** Clearance between the underside of the body and the ground when resting. */
@@ -256,27 +267,54 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drift", meta = (ClampMin = "0.0"))
 	float DriftEndSpeedKmh = 40.f;
 
-	/** Minimum steering amount (0..1) needed to start a drift; its sign picks the drift direction. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drift", meta = (ClampMin = "0.0", ClampMax = "1.0"))
-	float DriftMinSteer = 0.2f;
-
 	/** Boost charge gained per second of drifting at full slip (the boost meter goes from 0 to 1). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drift", meta = (ClampMin = "0.0"))
-	float DriftChargeRate = 0.35f;
+	float DriftChargeRate = 0.15f;
 
 	/** Slip angle (degrees) at which a drift charges at the full rate. Smaller slides charge proportionally less. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drift", meta = (ClampMin = "0.1"))
 	float DriftFullChargeSlipAngle = 12.f;
 
+	/**
+	 * Critical slip angle (degrees between where the nose points and where the car moves).
+	 * A drift pushed past it turns into an uncontrolled slide: the drift ends and grip and
+	 * steering are reduced until the car stabilises.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drift", meta = (ClampMin = "1.0", ClampMax = "180.0"))
+	float DriftCriticalSlipAngle = 30.f;
+
+	/** Seconds for grip and steering to come back gradually once the slide is below the critical angle again. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drift", meta = (ClampMin = "0.0"))
+	float DriftRecoveryTime = 0.8f;
+
+	/** Grip multiplier (on normal grip) right after losing control. Low = the car keeps sliding on inertia. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drift", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float OverslideGripMultiplier = 0.35f;
+
+	/** Steering multiplier right after losing control. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drift", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float OverslideSteerMultiplier = 0.3f;
+
 	// --------------------------------------------------------------- Boost
 
-	/** Boost meter spent by one boost (the meter goes from 0 to 1). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boost", meta = (ClampMin = "0.0", ClampMax = "1.0"))
-	float BoostCost = 0.34f;
+	/**
+	 * Number of equal segments the boost meter is divided into (the meter goes from 0 to 1).
+	 * Pressing the active ability button spends one whole segment.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boost", meta = (ClampMin = "1", ClampMax = "10"))
+	int32 BoostSegments = 3;
 
-	/** How long one boost lasts, in seconds. */
+	/** Meter drained per second while the boost button is held. 0.28 = a full meter lasts about 3.5 s. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boost", meta = (ClampMin = "0.0"))
-	float BoostDuration = 1.2f;
+	float BoostDrainRate = 0.28f;
+
+	/** Meter spent the moment a boost starts, so tapping the button cannot farm the starting kick. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boost", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float BoostStartCost = 0.05f;
+
+	/** A boost cannot start with less than this in the meter. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boost", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float BoostMinStartCharge = 0.08f;
 
 	/** Instant forward speed added when a boost starts (cm/s). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boost", meta = (ClampMin = "0.0"))
@@ -286,7 +324,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boost", meta = (ClampMin = "1.0"))
 	float BoostMaxSpeedKmh = 225.f;
 
-	/** Acceleration multiplier while boosting. The boost pushes at full throttle even when the throttle is released. */
+	/** Acceleration multiplier while boosting. The boost pushes at full throttle while its button is held, even with the throttle released. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boost", meta = (ClampMin = "0.0"))
 	float BoostAccelMultiplier = 1.8f;
 

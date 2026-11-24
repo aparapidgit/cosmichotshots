@@ -35,11 +35,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Actions")
 	TObjectPtr<UInputAction> Steer;
 
+	/** Hold to drift left. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Actions")
-	TObjectPtr<UInputAction> Drift;
+	TObjectPtr<UInputAction> DriftLeft;
 
+	/** Hold to drift right. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Actions")
+	TObjectPtr<UInputAction> DriftRight;
+
+	/** Hold to boost. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Actions")
 	TObjectPtr<UInputAction> Boost;
+
+	/** Press to use the character's active ability (spends one segment of the boost meter). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Actions")
+	TObjectPtr<UInputAction> Ability;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Actions")
 	TObjectPtr<UInputAction> UseItem;

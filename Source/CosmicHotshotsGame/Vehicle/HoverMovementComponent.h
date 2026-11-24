@@ -41,6 +41,9 @@ public:
 	/** Weakens grip and steering for a short time (wobble or spin-out after a strong hit). Never shortens a running one. */
 	void ApplyControlLoss(float Duration);
 
+	/** Takes boost fluid out of the meter (a share of the full meter, 0..1). The meter never goes below zero. */
+	void RemoveBoostCharge(float Amount);
+
 	/** State of the last physics step (for debug display and, later, HUD/VFX). */
 	const FHoverSimState& GetSimState() const { return SimState; }
 
@@ -77,6 +80,9 @@ private:
 	 */
 	bool bBoostPressedLatch = false;
 
+	/** Same for the active ability button: a press is remembered until a physics step uses it. */
+	bool bAbilityPressedLatch = false;
+
 	bool IsOwnerPlayerControlled() const;
 
 	/** Test helper (ch.Test.PlayerCharacter): the test character has been applied. */
@@ -90,6 +96,10 @@ private:
 
 	/** Scripted test input only: was the scripted boost button held on the previous step. */
 	bool bScriptedBoostWasHeld = false;
+	bool bScriptedAbilityWasHeld = false;
+
+	/** Test helper (ch.Test.StartBoostCharge): the starting meter value has been applied. */
+	bool bTestBoostChargeApplied = false;
 
 	/** Simulation time since this component started ticking physics. */
 	double ElapsedSimTime = 0.0;

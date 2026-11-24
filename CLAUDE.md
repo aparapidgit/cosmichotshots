@@ -22,15 +22,48 @@ Custom arcade hover physics on ONE rigid body. Not Chaos Vehicle.
 - Hover: 4 (or more) downward traces at the corners. Each applies a spring-damper force to keep ride height. Align body to ground normal smoothly.
 - Thrust: forward force from throttle; reverse/brake force.
 - Steering: yaw torque/rate from steering input, reduced at very high speed for stability.
-- Grip/drift: lateral velocity damping. Low damping = slidey hover feel. Drift button reduces grip temporarily and builds boost charge.
-- Boost: short forward impulse + FOV/VFX; fed by drifting and pickups.
+- Grip/drift: lateral velocity damping. Low damping = slidey hover feel. Drifting reduces grip temporarily and builds boost charge.
+- Drift controls (developer decision): two buttons pick the direction. **LB/L1 drifts left, RB/R1 drifts right**; the stick only widens or tightens the line. There is no single "drift + steer direction" button. A running drift keeps its direction while its own button is held, even if the other one is pressed too; pressing both together while not drifting starts nothing.
+- Boost: runs WHILE the boost button is held and drains the boost meter continuously (short forward kick when it starts, then higher top speed and acceleration) + FOV/VFX; fed by drifting, near misses and pickups. See "Energy Core: boost and active abilities" below.
 - Air control: small pitch/roll correction in the air, extra gravity so it feels snappy, not floaty.
 - Everything tunable in data assets, never hardcoded.
+
+### Drift: loss of control
+Drift is a controlled sideways slide up to a certain slip angle. If the angle between where the nose of the vehicle points and its actual direction of travel exceeds a critical threshold, the vehicle briefly loses part of its steering control and keeps sliding on inertia. Control returns gradually as the vehicle stabilises. The critical angle and the recovery time are to be tuned by testing.
 
 ### Physics step (decided, set in `Config/DefaultEngine.ini` under `[/Script/Engine.PhysicsSettings]`)
 - `bTickPhysicsAsync=True`, `AsyncFixedTimeStepSize=0.008333` (1/120 s): physics runs on a FIXED step so the driving feel is the same at 30, 60 and 144 FPS. Vehicle forces are applied in `UActorComponent::AsyncPhysicsTickComponent` through the physics-thread body handle. The engine still labels async physics "experimental"; the developer approved it as an explicit exception to the no-Experimental rule.
 - `MaxPhysicsDeltaTime=0.05`: the engine clamps the frame time it hands to physics to this value. The engine default is 1/30 s, which means any frame longer than 33 ms (i.e. running at or below 30 FPS) makes the game run in slow motion. 0.05 s moves that limit down to 20 FPS, so a 30 FPS frame rate (split-screen, weak PC) still simulates in real time. Below 20 FPS the game slows down instead of taking huge physics catch-up bursts.
 - Check any change to these values with `Scripts/run_hover_test.ps1` at 30, 60 and 144 FPS; the logged numbers must match.
+
+## Boost and risky driving (proposed mechanic for the PC version)
+The player fills the boost meter by pulling off risky manoeuvres:
+- Passing close to a wall or obstacle at high speed gives a small amount of boost energy.
+- A tight overtake gives a medium amount.
+- Successfully taking a more dangerous shortcut gives a larger amount.
+
+The player keeps the collected energy and spends it by pressing the boost button, so it can be used for an overtake, a corner exit or acceleration on a straight.
+
+**First prototype: test ONLY passing close to a wall, with manual boost activation.** Charging works above a minimum speed, and hitting the wall interrupts charging. Verify that driving right next to a wall rewards precision and that scraping along the barrier gives no benefit. The speed threshold, the distance from the wall and the amount of energy are to be determined by testing.
+
+Sulgwen's bonus for consecutive overtakes is a separate passive: it triggers automatically and raises max speed and acceleration, while the shared boost is activated manually by the player.
+
+Tight overtakes and shortcuts need race events (overtake detection, track sections) and are not part of the first prototype.
+
+### Energy Core: boost and active abilities (developer decisions)
+All characters use the same reservoir of boost fluid (the Energy Core, shown as the boost meter) for both the boost and the active ability. The reservoir is divided into segments (currently three equal segments).
+
+- **Boost** gradually spends fluid while it is on: holding the boost button drains the meter continuously and releasing it stops the boost. When the meter runs empty the boost stops and stays off while the button is held; a new boost needs a new press (developer decision), also when the press came while the meter was too low. A boost does NOT cost a whole segment. Starting a boost has a small fixed cost so tapping cannot farm the starting kick.
+- **Active ability** immediately spends an amount of fluid equal to one full segment. At least that amount must be available to activate it.
+
+The player can spend the energy on acceleration or save one segment for the active ability.
+
+Drift fills the reservoir slowly (the first value felt too fast once the meter was visible); fill and drain rates are tuned by playtesting and live in `UVehicleTuningData`. Until an active ability is implemented for a character, the ability button only spends the segment and shows a placeholder message.
+
+### Energy Core: boost loss on impact
+Hitting a wall or an object on the track takes away 10% to 20% of the reservoir's full capacity, depending on how hard the hit is. A weaker hit takes 10%, a stronger one up to 20%. The meter can drop no lower than zero.
+
+The penalty is applied once per hit. While in contact with a wall or object there is no boost charging for a close pass. Because boost and the active ability share the same reservoir, a hit can leave the player without the full segment needed to activate the ability.
 
 ## Characters and passive abilities (race-state driven)
 Game: Cosmic Hotshots. Precise steering with mild drifting. Passives adapt the car in real time and each should encourage a recognisable driving style. All numbers (bonuses, durations, thresholds) are PLACEHOLDERS to be tuned through playtesting. Everything must live in data assets.
@@ -68,7 +101,26 @@ Possible future characters: slipstream (benefit from driving behind another car)
 - Global console variable / dev setting that disables ALL passives, to test base driving feel and AI baseline.
 - Per-character toggle (`bPassiveEnabled` on the passive definition, or a `NullPassive` class) so any passive can be switched off without code changes.
 
-Active abilities (ENERGY CORE) for the PC version are NOT designed yet. Do not invent them.
+### Active abilities (PC version)
+Each character activates their ability manually. A successful activation immediately spends an amount of boost fluid equal to one full segment of the Energy Core reservoir. The same reservoir feeds the regular boost, which spends fluid gradually (see "Energy Core: boost and active abilities"). If there is not enough energy, or the activation condition is not met, the ability does not activate and no energy is spent.
+
+| Character | Active ability | Effect |
+|---|---|---|
+| Spark | Teleport | Teleports to a safe distance behind the nearest rival ahead, if that rival is within range. After teleporting, Spark can immediately attempt an overtake. |
+| Freya | Shared surge | Gets a strong, short burst of acceleration. All other drivers get a weaker burst at the same time. |
+| Killjoke | Drive disruption | All rivals ahead of him briefly lose part of their speed and keep control of their vehicle. For the first prototype every affected rival suffers the same effect. |
+| Glick | Magnetic field | Briefly pulls nearby vehicles towards himself. Vehicles ahead slow down slightly, those behind close in on him, and vehicles to the side move sideways towards him. |
+| Wilqis | Position swap | Swaps places with the nearest rival ahead if that rival is within short range. Both vehicles keep their own speed and are aligned with the direction of the track. |
+| Sulgwen | Surge with leader disruption | Gets a short burst of acceleration, and the current leader briefly loses part of their speed. While Sulgwen is in 1st place, activation is blocked and no energy is spent. |
+
+Spark appears behind the rival and still has to overtake by driving. Wilqis takes the rival's position immediately with the swap. Sulgwen's active ability makes an overtake easier, while her passive only triggers once she has actually overtaken a rival.
+
+Range, duration and strength of the effects are to be tuned by playtesting.
+
+Notes for implementation:
+- Only the abilities in this table are designed. Slots 7 and 8 have no active ability yet; do not invent one.
+- Most abilities need race state that only exists from Phase 2: live ranking and the current leader (Sulgwen, Killjoke), the nearest rival ahead measured along the track spline (Spark, Wilqis), the track direction at a position (Wilqis), and effects applied to OTHER vehicles through the shared modifier stack (Freya, Killjoke, Glick, Sulgwen).
+- Until a character's ability is implemented, the ability button only spends the segment and shows a placeholder message. Once it is implemented, a failed activation (condition not met) must NOT spend energy.
 
 ### Passive system architecture
 - `UCharacterDefinition` (PrimaryDataAsset): name, portrait, hovercar mesh, colour, passive definition reference, optional small base-stat modifiers. Base tuning stays in `UVehicleTuningData`.
@@ -133,12 +185,12 @@ Clean, readable at speed, gamepad-era layout. Built in UMG, data-driven (icons c
 - **Held power-up slot:** icon of the item the player keeps. Shuffle/roulette animation on pickup, and a distinct swap animation when a new box item replaces the unused one. Empty slot is visibly empty. Pressing use fires the item and clears the slot.
 - **Active effect indicators:** small icons with remaining-time rings for active modifiers/status effects (e.g. boost, speed buff/debuff, hit/stun), fed by the modifier stack.
 - **Character passive indicator:** shows when the player's passive is currently active and how strong it is (examples: Spark's comeback bonus on/off, Sulgwen's chain level and timer, Killjoke/Wilqis bonus active, Glick contact bonus, Freya close-overtake trigger).
-- **Boost / drift charge** meter. **ENERGY CORE** bar is a reserved placeholder slot (hidden until Phase 3).
+- **Energy Core meter** (the boost reservoir, shown in segments). It is one meter for boost and the active ability; there is no separate ENERGY CORE bar.
 - All indicators read from existing systems (modifier stack, race events, item slot) through view-model data; the HUD never contains gameplay logic.
 - HUD scale and visibility of optional elements go in Options (see next subsection).
 
 ### HUD element visibility in Options (independent of the hide button)
-- Each mechanics indicator can be **shown or hidden individually in Options**, separately from the show/hide button. Toggles (all default ON): held power-up slot, active effect icons (boost/buffs/debuffs/stuns with timer rings), character passive indicator, boost/drift meter, ENERGY CORE bar (reserved; only listed in Options once Phase 3 exists). Also toggles for standings list, place/lap counter, and the per-entry "racer holds an item" marker.
+- Each mechanics indicator can be **shown or hidden individually in Options**, separately from the show/hide button. Toggles (all default ON): held power-up slot, active effect icons (boost/buffs/debuffs/stuns with timer rings), character passive indicator, Energy Core meter (boost reservoir). Also toggles for standings list, place/lap counter, and the per-entry "racer holds an item" marker.
 - **Visibility rule:** an element is drawn only if `bHudVisible` (button toggle) is true AND that element's Options toggle is ON. The button never changes the Options toggles, and the Options toggles never change the button state. Hiding an element in Options hides it even when the HUD is shown with the button.
 - Settings are **per local player** and saved with the player's settings/profile (same storage as the FOV option). Changes apply immediately, with live preview if Options is opened from the pause menu.
 - Hiding an indicator only hides its display. The underlying mechanic (item slot, effects, passive, meters) keeps working normally. Exception to avoid confusion: if the item slot is hidden, the item pickup/use audio cue still plays.
@@ -189,8 +241,9 @@ Item boxes are floating boxes placed on the track. The REAL power-ups do not exi
 - Dev setting to force a specific item from the box, and to disable the position bias.
 - Console command to give the local player any item.
 
-## ENERGY CORE (LATER, Phase 3)
-- A resource that charges while driving/drifting/collecting and is spent on each character's ACTIVE ability. Do NOT implement now, but design for it: keep an `UEnergyCoreComponent` stub and an `IActiveAbility` interface so abilities can be added per character without refactoring.
+## Energy Core and active abilities (the abilities are Phase 3)
+- The Energy Core is the shared reservoir of boost fluid: ONE meter for both boost and the active ability, not a separate resource or a second bar. Its rules are in "Energy Core: boost and active abilities" and "Energy Core: boost loss on impact". The reservoir, its segments, hold-to-boost and the ability button (which spends one segment) already exist from Phase 1.
+- What is left for Phase 3 is the ABILITIES themselves. Designed so far: see "Active abilities (PC version)". Keep an `IActiveAbility` interface so abilities can be added per character without refactoring; do not invent abilities that are not listed.
 
 ## Menus and game flow
 All menus are UMG (Common UI plugin recommended for gamepad focus/navigation), fully usable with a gamepad, with clear focus highlight. Phase 1 menus are functional and grey; polish later.
@@ -265,7 +318,7 @@ Singleplayer only.
 - **Phase 1 (now):** grey-box hover prototype on a simple test track. Order: hover + thrust + steering -> drift + boost -> third-person camera (adjustable base FOV + speed FOV), speed lines -> vehicle-vehicle impact -> stats system with 2 test characters.
 - **Phase 2:** 8 characters as data assets (8 passives defined, values to tune), modifier stack + race events + all 8 passives with debug HUD, character select menu, item boxes (CTR style clusters) with EMPTY placeholder item + loot table + HUD slot, AI for 7 opponents, laps/positions/results.
 - **Phase 2b:** main menu (Single Race setup flow, Options, Exit), Adventure Mode with placeholder intro and portal cinematics, small hub map with on-foot character, portal unlock progression and save/load. Placeholders only (grey hub, placeholder videos).
-- **Phase 3:** ENERGY CORE + active abilities, split-screen polish, final art, audio.
+- **Phase 3:** active abilities (the Energy Core reservoir they are paid from already exists), split-screen polish, final art, audio.
 - **Later:** online rooms.
 
 ## Out of scope for now

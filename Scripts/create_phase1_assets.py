@@ -2,7 +2,8 @@
 create_phase1_assets.py  -  Creates the Phase 1 data assets (Cosmic Hotshots, UE 5.7)
 
 Creates what is missing and never replaces what exists:
-  /Game/Input/Actions/IA_Throttle, IA_Brake, IA_Steer, IA_Drift, IA_Boost, IA_UseItem, IA_LookBack
+  /Game/Input/Actions/IA_Throttle, IA_Brake, IA_Steer, IA_DriftLeft, IA_DriftRight, IA_Boost,
+                      IA_Ability, IA_UseItem, IA_LookBack   (IA_Drift from the old one-button layout is no longer used)
   /Game/Input/IMC_Driving              default gamepad + keyboard bindings
   /Game/Input/DA_DrivingInput          UDrivingInputConfig pointing at the assets above
   /Game/Data/Vehicles/DA_VehicleTuning_Default   UVehicleTuningData with the class defaults
@@ -13,7 +14,8 @@ Creates what is missing and never replaces what exists:
 
 Running it again after new actions were added to this script only ADDS the missing
 actions, the bindings of those new actions, and empty references in DA_DrivingInput.
-Bindings you changed in the editor are left alone.
+Bindings you changed in the editor are left alone, except the few listed in RETIRED_BINDINGS
+(an older default layout that would now conflict), which are removed.
 
 The project settings (Config/DefaultGame.ini, section CosmicHotshotsSettings) point at
 DA_DrivingInput, DA_VehicleTuning_Default and DA_CameraTuning_Default.
@@ -47,8 +49,10 @@ ACTIONS = {
     "IA_Throttle": unreal.InputActionValueType.AXIS1D,
     "IA_Brake": unreal.InputActionValueType.AXIS1D,
     "IA_Steer": unreal.InputActionValueType.AXIS1D,
-    "IA_Drift": unreal.InputActionValueType.BOOLEAN,
+    "IA_DriftLeft": unreal.InputActionValueType.BOOLEAN,
+    "IA_DriftRight": unreal.InputActionValueType.BOOLEAN,
     "IA_Boost": unreal.InputActionValueType.BOOLEAN,
+    "IA_Ability": unreal.InputActionValueType.BOOLEAN,
     "IA_UseItem": unreal.InputActionValueType.BOOLEAN,
     "IA_LookBack": unreal.InputActionValueType.BOOLEAN,
 }
@@ -66,14 +70,32 @@ BINDINGS = [
     ("IA_Steer", "Right", []),
     ("IA_Steer", "A", ["negate"]),
     ("IA_Steer", "Left", ["negate"]),
-    ("IA_Drift", "Gamepad_RightShoulder", []),
-    ("IA_Drift", "SpaceBar", []),
+    ("IA_DriftLeft", "Gamepad_LeftShoulder", []),
+    ("IA_DriftLeft", "Q", []),
+    ("IA_DriftRight", "Gamepad_RightShoulder", []),
+    ("IA_DriftRight", "E", []),
     ("IA_Boost", "Gamepad_FaceButton_Bottom", []),
     ("IA_Boost", "LeftShift", []),
+    ("IA_Ability", "Gamepad_FaceButton_Right", []),
+    ("IA_Ability", "R", []),
     ("IA_UseItem", "Gamepad_FaceButton_Left", []),
-    ("IA_UseItem", "E", []),
+    ("IA_UseItem", "F", []),
     ("IA_LookBack", "Gamepad_FaceButton_Top", []),
     ("IA_LookBack", "C", []),
+]
+
+# Layout changes for an IMC_Driving made by an older version of this script.
+# Drift moved from one button (IA_Drift) to two (IA_DriftLeft / IA_DriftRight), which freed
+# the old drift bindings and took the E key, so "use item" moved to F.
+# (action, key) pairs removed from an existing IMC_Driving:
+RETIRED_BINDINGS = [
+    ("IA_Drift", "Gamepad_RightShoulder"),
+    ("IA_Drift", "SpaceBar"),
+    ("IA_UseItem", "E"),
+]
+# (action, key) pairs from BINDINGS added to an existing IMC_Driving even though the action is not new:
+MOVED_BINDINGS = [
+    ("IA_UseItem", "F"),
 ]
 
 # UDrivingInputConfig property -> action name
@@ -81,8 +103,10 @@ CONFIG_ACTIONS = {
     "throttle": "IA_Throttle",
     "brake": "IA_Brake",
     "steer": "IA_Steer",
-    "drift": "IA_Drift",
+    "drift_left": "IA_DriftLeft",
+    "drift_right": "IA_DriftRight",
     "boost": "IA_Boost",
+    "ability": "IA_Ability",
     "use_item": "IA_UseItem",
     "look_back": "IA_LookBack",
 }
@@ -251,17 +275,30 @@ def main():
                                      unreal.InputMappingContext_Factory())
     data = imc.get_editor_property("default_key_mappings")
     mappings = list(data.get_editor_property("mappings"))
+
+    def binding_of(mapping):
+        action = mapping.get_editor_property("action")
+        return (action.get_name() if action else None, mapping.get_editor_property("key").export_text())
+
+    # Retire bindings of an older layout (see RETIRED_BINDINGS).
+    kept = [m for m in mappings if binding_of(m) not in RETIRED_BINDINGS]
+    removed = len(mappings) - len(kept)
+    mappings = kept
+
+    existing = set(binding_of(m) for m in mappings)
     added = 0
     for action_name, key_name, modifier_names in BINDINGS:
-        if imc_created or action_name in new_actions:
+        wanted = imc_created or action_name in new_actions or (action_name, key_name) in MOVED_BINDINGS
+        if wanted and (action_name, key_name) not in existing:
             mappings.append(make_mapping(imc, actions[action_name], key_name, modifier_names))
             added += 1
-    if added:
+
+    if added or removed:
         data.set_editor_property("mappings", mappings)
         imc.set_editor_property("default_key_mappings", data)
         changed.append(imc)
         if not imc_created:
-            unreal.log("Phase1Assets: added %d binding(s) to existing IMC_Driving" % added)
+            unreal.log("Phase1Assets: IMC_Driving: removed %d retired binding(s), added %d" % (removed, added))
 
     # --- driving input config: fill only references that are still empty
     config, config_created = get_or_create("DA_DrivingInput", INPUT_DIR, unreal.DrivingInputConfig,

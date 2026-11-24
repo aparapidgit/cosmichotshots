@@ -26,11 +26,21 @@ struct FVehicleInputState
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	float Steer = 0.f;
 
+	/** Hold to drift to the left. The button picks the drift direction; steering only shapes the line. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
-	bool bDrift = false;
+	bool bDriftLeft = false;
 
+	/** Hold to drift to the right. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	bool bDriftRight = false;
+
+	/** Hold to boost; the boost meter drains while it is held. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	bool bBoost = false;
+
+	/** Press to use the character's active ability; it spends one whole segment of the boost meter. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	bool bUseAbility = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	bool bUseItem = false;

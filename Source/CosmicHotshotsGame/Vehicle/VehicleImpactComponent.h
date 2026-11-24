@@ -61,6 +61,10 @@ struct FVehicleImpactInfo
 	UPROPERTY(BlueprintReadOnly, Category = "Impact")
 	float Strength = 0.f;
 
+	/** Share of the full boost meter (0..1) this hit took away. Only wall and object hits cost boost. */
+	UPROPERTY(BlueprintReadOnly, Category = "Impact")
+	float BoostLost = 0.f;
+
 	UPROPERTY(BlueprintReadOnly, Category = "Impact")
 	EImpactReaction Reaction = EImpactReaction::None;
 };

@@ -64,13 +64,24 @@ struct FHoverSimParams
 	float DriftMinTurn = 0.f;
 	float DriftMinSpeed = 0.f;
 	float DriftEndSpeed = 0.f;
-	float DriftMinSteer = 0.f;
 	float DriftChargeRate = 0.f;
 	float DriftFullChargeSlipAngle = 1.f;
+	/** Slip angle past which a drift turns into an uncontrolled slide. */
+	float DriftCriticalSlipAngle = 180.f;
+	/** Seconds for grip and steering to come back once the slide is below the critical angle again. */
+	float DriftRecoveryTime = 0.f;
+	float OverslideGripMultiplier = 1.f;
+	float OverslideSteerMultiplier = 1.f;
 
 	// Boost (the meter goes from 0 to MaxBoostCharge)
-	float BoostCost = 0.f;
-	float BoostDuration = 0.f;
+	/** Number of equal segments the meter is divided into. The active ability spends one whole segment. */
+	int32 BoostSegments = 1;
+	/** Meter drained per second while the boost button is held. */
+	float BoostDrainRate = 0.f;
+	/** Meter spent the moment a boost starts. */
+	float BoostStartCost = 0.f;
+	/** A boost cannot start below this charge. */
+	float BoostMinStartCharge = 0.f;
 	float BoostImpulse = 0.f;
 	float BoostMaxSpeed = 1.f;
 	float BoostAccelMultiplier = 1.f;
@@ -112,14 +123,28 @@ struct FDriftBoostState
 	bool bDrifting = false;
 	/** +1 = drifting to the right, -1 = to the left. Locked when the drift starts. */
 	float DriftDirection = 0.f;
-	/** Boost meter, 0..MaxBoostCharge. Filled by drifting (and later by pickups), spent by boosting. */
+	/**
+	 * Seconds of reduced grip and steering left after a drift went past the critical slip angle.
+	 * Held at the full recovery time while the slide is still past that angle. 0 = full control.
+	 */
+	float OverslideTimeRemaining = 0.f;
+	/** After an overslide a new drift needs a fresh button press, not a button that was simply kept held. */
+	bool bDriftNeedsNewPress = false;
+	/**
+	 * Boost meter, 0..MaxBoostCharge, shown in equal segments. Filled by drifting (and later by
+	 * near misses and pickups). Holding boost drains it continuously; the active ability spends
+	 * one whole segment.
+	 */
 	float BoostCharge = 0.f;
-	/** Seconds left of the current boost. 0 = not boosting. */
-	float BoostTimeRemaining = 0.f;
+	/** True while the boost is running (button held and meter not empty). */
+	bool bBoosting = false;
 	/** Number of boosts started so far. Lets camera/VFX/audio notice a new boost. */
 	int32 BoostCount = 0;
+	/** Number of times the active ability button spent a segment. An ability system reacts to this. */
+	int32 AbilityUseCount = 0;
 
-	bool IsBoosting() const { return BoostTimeRemaining > 0.f; }
+	bool IsBoosting() const { return bBoosting; }
+	bool IsOversliding() const { return OverslideTimeRemaining > 0.f; }
 };
 
 /** Result of the last physics step. */
@@ -158,13 +183,16 @@ struct FHoverSim
 	/**
 	 * Applies hover, gravity, thrust, steering, grip, drift, boost and air control to the body
 	 * for one physics step.
-	 * @param bBoostPressed  true on the step that should start a boost (button press, not hold).
+	 * @param bBoostPressed    true on the step right after the boost button went down. Starts a boost
+	 *                         even if the button was released again before this step ran.
+	 * @param bAbilityPressed  true on the step right after the ability button went down (press, not hold).
 	 */
 	static void Step(
 		Chaos::FRigidBodyHandle_Internal& Body,
 		const FHoverSimParams& Params,
 		const FVehicleInputState& Input,
 		bool bBoostPressed,
+		bool bAbilityPressed,
 		FHoverTraceFunction Trace,
 		float DeltaTime,
 		FHoverSimState& OutState);

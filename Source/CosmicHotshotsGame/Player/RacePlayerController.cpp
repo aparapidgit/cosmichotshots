@@ -34,7 +34,7 @@ void ARacePlayerController::SetupInputComponent()
 	// Values are polled every frame in PlayerTick, so plain value bindings are enough.
 	const UInputAction* const Actions[] = {
 		DrivingInput->Throttle, DrivingInput->Brake, DrivingInput->Steer,
-		DrivingInput->Drift, DrivingInput->Boost, DrivingInput->UseItem, DrivingInput->LookBack,
+		DrivingInput->DriftLeft, DrivingInput->DriftRight, DrivingInput->Boost, DrivingInput->Ability, DrivingInput->UseItem, DrivingInput->LookBack,
 	};
 	for (const UInputAction* Action : Actions)
 	{
@@ -126,8 +126,10 @@ void ARacePlayerController::PlayerTick(float DeltaTime)
 	Input.Throttle = FMath::Clamp(GetAxisValue(DrivingInput->Throttle), 0.f, 1.f);
 	Input.Brake = FMath::Clamp(GetAxisValue(DrivingInput->Brake), 0.f, 1.f);
 	Input.Steer = FMath::Clamp(GetAxisValue(DrivingInput->Steer), -1.f, 1.f);
-	Input.bDrift = GetButtonValue(DrivingInput->Drift);
+	Input.bDriftLeft = GetButtonValue(DrivingInput->DriftLeft);
+	Input.bDriftRight = GetButtonValue(DrivingInput->DriftRight);
 	Input.bBoost = GetButtonValue(DrivingInput->Boost);
+	Input.bUseAbility = GetButtonValue(DrivingInput->Ability);
 	Input.bUseItem = GetButtonValue(DrivingInput->UseItem);
 
 	Vehicle->SetInput(Input);

@@ -29,6 +29,7 @@ void FHoverSim::Step(
 	const FHoverSimParams& Params,
 	const FVehicleInputState& Input,
 	bool bBoostPressed,
+	bool bAbilityPressed,
 	FHoverTraceFunction Trace,
 	float DeltaTime,
 	FHoverSimState& OutState)
@@ -141,30 +142,64 @@ void FHoverSim::Step(
 	// A strong hit (wobble, spin-out) briefly weakens grip and steering. A drift cannot survive it.
 	const bool bControlLoss = OutState.ControlLossTimeRemaining > 0.f;
 	OutState.ControlLossTimeRemaining = FMath::Max(OutState.ControlLossTimeRemaining - DeltaTime, 0.f);
-	const double ControlGripScale = bControlLoss ? Params.ControlLossGripMultiplier : 1.0;
-	const double ControlSteerScale = bControlLoss ? Params.ControlLossSteerMultiplier : 1.0;
+	double ControlGripScale = bControlLoss ? Params.ControlLossGripMultiplier : 1.0;
+	double ControlSteerScale = bControlLoss ? Params.ControlLossSteerMultiplier : 1.0;
 
-	// ---------------------------------------------------------- Drift state
 	FDriftBoostState& DriftBoost = OutState.DriftBoost;
 
-	if (bControlLoss)
+	// ------------------------------------------------------- Drift overslide
+	// A drift is a controlled slide only up to a critical slip angle. Past it the car loses part
+	// of its grip and steering and keeps sliding on inertia. The loss stays at full strength while
+	// the slide is still past the critical angle, then fades out as the car stabilises.
+	const bool bPastCriticalAngle = FMath::Abs(SlipAngle) > Params.DriftCriticalSlipAngle;
+	const bool bOversliding = DriftBoost.OverslideTimeRemaining > 0.f;
+	if (bGrounded && bPastCriticalAngle && (DriftBoost.bDrifting || bOversliding))
+	{
+		DriftBoost.OverslideTimeRemaining = Params.DriftRecoveryTime;
+		// The drift is over; a new one needs a fresh press of a drift button.
+		DriftBoost.bDriftNeedsNewPress = true;
+	}
+	else
+	{
+		DriftBoost.OverslideTimeRemaining = FMath::Max(DriftBoost.OverslideTimeRemaining - DeltaTime, 0.f);
+	}
+	if (!Input.bDriftLeft && !Input.bDriftRight)
+	{
+		DriftBoost.bDriftNeedsNewPress = false;
+	}
+
+	// 1 right after losing control, fading to 0 when control is fully back.
+	const double Overslide = Params.DriftRecoveryTime > UE_SMALL_NUMBER
+		? FMath::Clamp(DriftBoost.OverslideTimeRemaining / Params.DriftRecoveryTime, 0.f, 1.f)
+		: 0.0;
+	ControlGripScale *= FMath::Lerp(1.0, static_cast<double>(Params.OverslideGripMultiplier), Overslide);
+	ControlSteerScale *= FMath::Lerp(1.0, static_cast<double>(Params.OverslideSteerMultiplier), Overslide);
+
+	// ---------------------------------------------------------- Drift state
+	if (bControlLoss || Overslide > 0.0)
 	{
 		DriftBoost.bDrifting = false;
 		DriftBoost.DriftDirection = 0.f;
 	}
 	else if (!DriftBoost.bDrifting)
 	{
-		// A drift needs the button, the ground, enough speed and a steering direction to commit to.
-		if (Input.bDrift && bGrounded && ForwardSpeed >= Params.DriftMinSpeed && FMath::Abs(SteerInput) >= Params.DriftMinSteer)
+		// The button picks the direction: left button drifts left, right button drifts right.
+		// A drift needs exactly one of them, the ground and enough speed. Both pressed together start nothing.
+		if (Input.bDriftLeft != Input.bDriftRight && !DriftBoost.bDriftNeedsNewPress && bGrounded && ForwardSpeed >= Params.DriftMinSpeed)
 		{
 			DriftBoost.bDrifting = true;
-			DriftBoost.DriftDirection = SteerInput > 0.0 ? 1.f : -1.f;
+			DriftBoost.DriftDirection = Input.bDriftRight ? 1.f : -1.f;
 		}
 	}
-	else if (!Input.bDrift || ForwardSpeed < Params.DriftEndSpeed)
+	else
 	{
-		DriftBoost.bDrifting = false;
-		DriftBoost.DriftDirection = 0.f;
+		// A running drift lasts while ITS button is held; pressing the other one as well changes nothing.
+		const bool bOwnButtonHeld = DriftBoost.DriftDirection > 0.f ? Input.bDriftRight : Input.bDriftLeft;
+		if (!bOwnButtonHeld || ForwardSpeed < Params.DriftEndSpeed)
+		{
+			DriftBoost.bDrifting = false;
+			DriftBoost.DriftDirection = 0.f;
+		}
 	}
 
 	// Drifting fills the boost meter; a bigger slide fills it faster. No charge in the air.
@@ -179,20 +214,44 @@ void FHoverSim::Step(
 	}
 	DriftBoost.BoostCharge = FMath::Clamp(DriftBoost.BoostCharge, 0.f, FDriftBoostState::MaxBoostCharge);
 
-	// ---------------------------------------------------------- Boost state
-	double BoostKickAcceleration = 0.0;
-	if (bBoostPressed && DriftBoost.BoostCharge >= Params.BoostCost)
+	// -------------------------------------------------------- Active ability
+	// The ability button spends one whole segment of the meter. The abilities themselves do not
+	// exist yet (Phase 3); AbilityUseCount is what an ability system will react to.
+	const float SegmentSize = FDriftBoostState::MaxBoostCharge / FMath::Max(Params.BoostSegments, 1);
+	if (bAbilityPressed && DriftBoost.BoostCharge >= SegmentSize - UE_KINDA_SMALL_NUMBER)
 	{
-		DriftBoost.BoostCharge -= Params.BoostCost;
-		DriftBoost.BoostTimeRemaining = Params.BoostDuration;
-		++DriftBoost.BoostCount;
-
-		// The kick: an instant speed gain, delivered as one step of acceleration.
-		BoostKickAcceleration = DeltaTime > UE_SMALL_NUMBER ? Params.BoostImpulse / DeltaTime : 0.0;
+		DriftBoost.BoostCharge = FMath::Max(DriftBoost.BoostCharge - SegmentSize, 0.f);
+		++DriftBoost.AbilityUseCount;
 	}
 
-	const bool bBoosting = DriftBoost.IsBoosting();
-	DriftBoost.BoostTimeRemaining = FMath::Max(DriftBoost.BoostTimeRemaining - DeltaTime, 0.f);
+	// ---------------------------------------------------------- Boost state
+	// Boost runs while the button is held and drains the meter continuously.
+	double BoostKickAcceleration = 0.0;
+	if (!DriftBoost.bBoosting)
+	{
+		// Starting costs a little and needs a minimum charge, so tapping the button cannot farm the kick.
+		// Only a new press starts a boost: a button kept held after the meter ran dry (or pressed while
+		// it was too low) starts nothing, even once drifting refills the meter.
+		if (bBoostPressed &&DriftBoost.BoostCharge >= FMath::Max(Params.BoostMinStartCharge, Params.BoostStartCost))
+		{
+			DriftBoost.bBoosting = true;
+			DriftBoost.BoostCharge -= Params.BoostStartCost;
+			++DriftBoost.BoostCount;
+
+			// The kick: an instant speed gain, delivered as one step of acceleration.
+			BoostKickAcceleration = DeltaTime > UE_SMALL_NUMBER ? Params.BoostImpulse / DeltaTime : 0.0;
+		}
+	}
+	else if (!Input.bBoost || DriftBoost.BoostCharge <= 0.f)
+	{
+		DriftBoost.bBoosting = false;
+	}
+
+	const bool bBoosting = DriftBoost.bBoosting;
+	if (bBoosting && !Params.bInfiniteBoost)
+	{
+		DriftBoost.BoostCharge = FMath::Max(DriftBoost.BoostCharge - Params.BoostDrainRate * DeltaTime, 0.f);
+	}
 
 	// While boosting the car pushes at full throttle towards a higher top speed.
 	const double MaxSpeed = bBoosting ? FMath::Max(Params.BoostMaxSpeed, Params.MaxSpeed) : Params.MaxSpeed;

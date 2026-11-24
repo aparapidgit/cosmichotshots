@@ -1,5 +1,6 @@
 #include "Game/RaceGameMode.h"
 
+#include "Debug/RaceDebugHUD.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerStart.h"
 #include "Player/RacePlayerController.h"
@@ -9,6 +10,9 @@ ARaceGameMode::ARaceGameMode()
 {
 	DefaultPawnClass = ARaceVehicle::StaticClass();
 	PlayerControllerClass = ARacePlayerController::StaticClass();
+
+	// Dev-only boost meter until the real UMG HUD exists (Phase 2).
+	HUDClass = ARaceDebugHUD::StaticClass();
 }
 
 AActor* ARaceGameMode::ChoosePlayerStart_Implementation(AController* Player)

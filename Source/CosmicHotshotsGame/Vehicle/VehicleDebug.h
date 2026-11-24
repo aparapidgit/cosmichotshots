@@ -18,6 +18,7 @@ namespace CosmicHotshots::VehicleCVars
 	extern TAutoConsoleVariable<float> YawResponse;
 	extern TAutoConsoleVariable<float> LateralGrip;
 	extern TAutoConsoleVariable<float> DriftGrip;
+	extern TAutoConsoleVariable<float> DriftCriticalAngle;
 
 	/** 1 = the boost meter is always full (tuning boosts without having to drift first). */
 	extern TAutoConsoleVariable<int32> InfiniteBoost;
@@ -42,6 +43,9 @@ namespace CosmicHotshots::VehicleCVars
 
 	/** Test helper: roster index of the character given to the dummy car. Negative = project default. */
 	extern TAutoConsoleVariable<int32> DummyCharacter;
+
+	/** Test helper: boost meter value (0..1) given to the player's car at start. Negative = leave as is. */
+	extern TAutoConsoleVariable<float> StartBoostCharge;
 
 	/** Test helper: take one screenshot at this simulation time (seconds). 0 = off. */
 	extern TAutoConsoleVariable<float> ScreenshotTime;

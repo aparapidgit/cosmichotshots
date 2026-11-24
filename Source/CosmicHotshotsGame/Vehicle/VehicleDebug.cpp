@@ -40,6 +40,10 @@ namespace CosmicHotshots::VehicleCVars
 		TEXT("ch.Vehicle.LateralGrip"), UseAssetValue,
 		TEXT("Override sideways grip in 1/s. Negative = use the tuning data asset."), ECVF_Cheat);
 
+	TAutoConsoleVariable<float> DriftCriticalAngle(
+		TEXT("ch.Vehicle.DriftCriticalAngle"), UseAssetValue,
+		TEXT("Override the critical drift slip angle in degrees. Negative = use the tuning data asset."), ECVF_Cheat);
+
 	TAutoConsoleVariable<float> DriftGrip(
 		TEXT("ch.Vehicle.DriftGrip"), UseAssetValue,
 		TEXT("Override sideways grip while drifting in 1/s. Negative = use the tuning data asset."), ECVF_Cheat);
@@ -75,6 +79,10 @@ namespace CosmicHotshots::VehicleCVars
 	TAutoConsoleVariable<int32> DummyCharacter(
 		TEXT("ch.Test.DummyCharacter"), -1,
 		TEXT("Test helper: roster index of the character given to the dummy car. Negative = project default."), ECVF_Cheat);
+
+	TAutoConsoleVariable<float> StartBoostCharge(
+		TEXT("ch.Test.StartBoostCharge"), -1.f,
+		TEXT("Test helper: boost meter value (0..1) given to the player's car at start. Negative = leave as is."), ECVF_Cheat);
 
 	TAutoConsoleVariable<float> ScreenshotTime(
 		TEXT("ch.Test.ScreenshotTime"), 0.f,

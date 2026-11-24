@@ -164,6 +164,14 @@ void UVehicleImpactComponent::HandleWallHit(AActor* OtherActor, const FVector& N
 	// Walls wobble the car but never spin it out: wall contact is too common to punish that hard.
 	ApplyReaction(Info, /*bAllowSpinOut=*/false);
 
+	// A wall or object hit also costs boost fluid: a light hit takes the minimum share of the meter,
+	// a hard one the maximum. Once per hit (the cooldown below covers the rest of the contact).
+	if (Movement)
+	{
+		Info.BoostLost = FMath::Lerp(Tuning->WallBoostLossMin, Tuning->WallBoostLossMax, Hardness);
+		Movement->RemoveBoostCharge(Info.BoostLost);
+	}
+
 	StartCooldown(OtherActor);
 	FinishImpact(Info);
 }
@@ -205,9 +213,9 @@ void UVehicleImpactComponent::FinishImpact(const FVehicleImpactInfo& Info)
 	if (VehicleCVars::LogInterval.GetValueOnGameThread() > 0.f)
 	{
 		static const TCHAR* const ReactionNames[] = { TEXT("none"), TEXT("wobble"), TEXT("spinout") };
-		UE_LOG(LogCosmicVehicle, Log, TEXT("IMPACT %s hit %s (%s) closing=%.0f speedChange=%.0f strength=%.2f reaction=%s"),
+		UE_LOG(LogCosmicVehicle, Log, TEXT("IMPACT %s hit %s (%s) closing=%.0f speedChange=%.0f strength=%.2f reaction=%s boostLost=%.3f"),
 			*GetNameSafe(GetOwner()), *GetNameSafe(Info.OtherActor), Info.bOtherIsVehicle ? TEXT("vehicle") : TEXT("wall"),
-			Info.ClosingSpeed, Info.SpeedChange, Info.Strength, ReactionNames[static_cast<int32>(Info.Reaction)]);
+			Info.ClosingSpeed, Info.SpeedChange, Info.Strength, ReactionNames[static_cast<int32>(Info.Reaction)], Info.BoostLost);
 	}
 
 	if (VehicleCVars::DebugDraw.GetValueOnGameThread() != 0)
