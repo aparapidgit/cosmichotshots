@@ -8,6 +8,7 @@
 #include "Vehicle/VehicleStatModifiers.h"
 #include "CharacterDefinition.generated.h"
 
+class UPassiveDefinition;
 class UStaticMesh;
 class UTexture2D;
 class UVehicleTuningData;
@@ -41,7 +42,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hovercar")
 	FVehicleStatModifiers StatModifiers;
 
-	/** Passive ability definition. Reserved for Phase 2 (the passive system does not exist yet). */
+	/** Passive ability of this character (tunables and on/off switch). Empty = no passive. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Passive")
-	TObjectPtr<const UDataAsset> PassiveDefinition;
+	TObjectPtr<const UPassiveDefinition> PassiveDefinition;
 };

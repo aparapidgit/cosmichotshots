@@ -15,7 +15,9 @@
 #include "Race/TrackSplineTable.h"
 #include "UnrealClient.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
+#include "Passive/VehiclePassiveComponent.h"
 #include "Vehicle/VehicleDebug.h"
+#include "Vehicle/VehicleModifierComponent.h"
 #include "Vehicle/VehicleStatsComponent.h"
 #include "Vehicle/VehicleTuningData.h"
 
@@ -33,6 +35,12 @@ namespace
 	constexpr float AbilityMessageSeconds = 2.f;
 
 #if !UE_BUILD_SHIPPING
+	// Test helper (ch.Test.SpeedModifier): when the test modifier starts, how long it holds and fades.
+	const FName TestModifierSource(TEXT("Test.SpeedModifier"));
+	constexpr double TestModifierStartTime = 2.0;
+	constexpr float TestModifierDuration = 2.f;
+	constexpr float TestModifierFade = 1.f;
+
 	// Test helper: scripted mode 6 drives around the track line (GetAutopilotInput).
 	constexpr int32 AutopilotMode = 6;
 	constexpr double AutopilotSettleEnd = 1.0;
@@ -46,6 +54,10 @@ namespace
 	constexpr float AutopilotSlowThrottle = 0.4f;
 	constexpr float AutopilotProjectionWindow = 3000.f;
 	constexpr float AutopilotReacquireDistance = 2500.f;
+	/** Below this speed (cm/s) for longer than the delay (s), the autopilot reverses for the duration (s). */
+	constexpr float AutopilotStuckSpeed = 300.f;
+	constexpr float AutopilotStuckDelay = 1.f;
+	constexpr float AutopilotReverseDuration = 1.2f;
 
 	/**
 	 * Fixed input sequence for the headless frame-rate test (ch.Test.ScriptedInput 1).
@@ -217,6 +229,12 @@ void UHoverMovementComponent::SetTuning(const UVehicleTuningData* InTuning)
 void UHoverMovementComponent::SetStats(const UVehicleStatsComponent* InStats)
 {
 	Stats = InStats;
+}
+
+void UHoverMovementComponent::SetModifierComponents(UVehicleModifierComponent* InModifiers, UVehiclePassiveComponent* InPassive)
+{
+	Modifiers = InModifiers;
+	Passive = InPassive;
 }
 
 void UHoverMovementComponent::SetInput(const FVehicleInputState& InInput)
@@ -412,17 +430,17 @@ FHoverSimParams UHoverMovementComponent::BuildSimParams() const
 	Params.AirLevelStrength = Tuning->AirLevelStrength;
 	Params.AirLevelDamping = Tuning->AirLevelDamping;
 
-	// Character (and later passive/item) multipliers on top of the base tuning.
+	// Character x modifier stack (passives, items) multipliers on top of the base tuning.
 	// Mass, RamPower and Stability are not driving values: the body and the impact component use them.
 	if (Stats)
 	{
-		const FVehicleStatModifiers& Modifiers = Stats->GetModifiers();
-		Params.MaxSpeed *= Modifiers.MaxSpeed;
-		Params.BoostMaxSpeed *= Modifiers.MaxSpeed;
-		Params.Acceleration *= Modifiers.Acceleration;
-		Params.MaxYawRate *= Modifiers.Steering;
-		Params.LateralGrip *= Modifiers.Grip;
-		Params.DriftGrip *= Modifiers.Grip;
+		const FVehicleStatModifiers StatModifiers = Stats->GetModifiers();
+		Params.MaxSpeed *= StatModifiers.MaxSpeed;
+		Params.BoostMaxSpeed *= StatModifiers.MaxSpeed;
+		Params.Acceleration *= StatModifiers.Acceleration;
+		Params.MaxYawRate *= StatModifiers.Steering;
+		Params.LateralGrip *= StatModifiers.Grip;
+		Params.DriftGrip *= StatModifiers.Grip;
 	}
 
 	return Params;
@@ -502,15 +520,49 @@ void UHoverMovementComponent::AsyncPhysicsTickComponent(float DeltaTime, float S
 #if !UE_BUILD_SHIPPING
 	// Scripted input drives the player's car only; test dummies just sit there.
 	const int32 ScriptedMode = CosmicHotshots::VehicleCVars::ScriptedInput.GetValueOnGameThread();
-	if (ScriptedMode != 0 && IsOwnerPlayerControlled())
+	if (bTestBot)
 	{
-		StepInput = ScriptedMode == AutopilotMode ? GetAutopilotInput(*Body) : GetScriptedTestInput(ScriptedMode, ElapsedSimTime);
+		// Test bots only steer and use the throttle; no boost, no ability.
+		StepInput = GetAutopilotInput(*Body, TestBotLateralOffset, TestBotThrottleScale, DeltaTime);
+		bBoostPressed = false;
+		bAbilityPressed = false;
+	}
+	else if (ScriptedMode != 0 && IsOwnerPlayerControlled())
+	{
+		StepInput = ScriptedMode == AutopilotMode ? GetAutopilotInput(*Body, 0.f, 1.f, DeltaTime) : GetScriptedTestInput(ScriptedMode, ElapsedSimTime);
 		bBoostPressed = StepInput.bBoost && !bScriptedBoostWasHeld;
 		bScriptedBoostWasHeld = StepInput.bBoost;
 		bAbilityPressed = StepInput.bUseAbility && !bScriptedAbilityWasHeld;
 		bScriptedAbilityWasHeld = StepInput.bUseAbility;
 	}
 #endif
+
+	// Temporary bonuses first: run durations and fades, then let the passive react to the race state
+	// of the previous step. Impacts and the hover step below then use the resulting stats.
+	if (Modifiers)
+	{
+		Modifiers->GetStack().Advance(DeltaTime, SimTime);
+#if !UE_BUILD_SHIPPING
+		// Test helper: one max-speed modifier with fade in, hold and fade out, to check the stack on its own.
+		const float TestSpeedModifier = CosmicHotshots::VehicleCVars::TestSpeedModifier.GetValueOnGameThread();
+		if (TestSpeedModifier > 0.f && !bTestModifierApplied && ElapsedSimTime >= TestModifierStartTime && IsOwnerPlayerControlled())
+		{
+			bTestModifierApplied = true;
+			FVehicleModifierSpec Spec;
+			Spec.SourceId = TestModifierSource;
+			Spec.Stat = EVehicleStat::MaxSpeed;
+			Spec.Value = TestSpeedModifier;
+			Spec.Duration = TestModifierDuration;
+			Spec.FadeIn = TestModifierFade;
+			Spec.FadeOut = TestModifierFade;
+			Modifiers->GetStack().AddOrRefresh(Spec);
+		}
+#endif
+	}
+	if (Passive)
+	{
+		Passive->StepPassive(DeltaTime, SimTime);
+	}
 
 	// Hits from the previous step first, so the hover step below already drives the bounced car.
 	ApplyImpacts(*Body, *Proxy);
@@ -537,7 +589,14 @@ void UHoverMovementComponent::AsyncPhysicsTickComponent(float DeltaTime, float S
 	LogStep(DeltaTime);
 }
 
-FVehicleInputState UHoverMovementComponent::GetAutopilotInput(const Chaos::FRigidBodyHandle_Internal& Body)
+void UHoverMovementComponent::SetTestBot(float LateralOffset, float ThrottleScale)
+{
+	bTestBot = true;
+	TestBotLateralOffset = LateralOffset;
+	TestBotThrottleScale = ThrottleScale;
+}
+
+FVehicleInputState UHoverMovementComponent::GetAutopilotInput(const Chaos::FRigidBodyHandle_Internal& Body, float LateralOffset, float ThrottleScale, float DeltaTime)
 {
 	FVehicleInputState Autopilot;
 #if !UE_BUILD_SHIPPING
@@ -554,13 +613,31 @@ FVehicleInputState UHoverMovementComponent::GetAutopilotInput(const Chaos::FRigi
 	AutopilotDistance = Projection.Distance;
 
 	const float Speed = FVector(Body.V()).Size();
-	const FVector AimPoint = AutopilotTrack->GetFrameAtDistance(
-		Projection.Distance + AutopilotLookAheadBase + Speed * AutopilotLookAheadTime).Location;
+	const FTrackFrame AimFrame = AutopilotTrack->GetFrameAtDistance(
+		Projection.Distance + AutopilotLookAheadBase + Speed * AutopilotLookAheadTime);
+	const FVector AimPoint = AimFrame.Location + AimFrame.Right * LateralOffset;
 	const FVector LocalAim = Rotation.UnrotateVector(AimPoint - Location);
 	const float AngleToAim = FMath::RadiansToDegrees(FMath::Atan2(LocalAim.Y, LocalAim.X));
 
+	// Stuck against a wall or another car: back off for a moment, turning the nose towards the aim point
+	// (steering is inverted in reverse, like a car, so steer away from the aim).
+	if (AutopilotReverseTimeRemaining > 0.f)
+	{
+		AutopilotReverseTimeRemaining -= DeltaTime;
+		Autopilot.Brake = 1.f;
+		Autopilot.Steer = AngleToAim >= 0.f ? -1.f : 1.f;
+		return Autopilot;
+	}
+
+	AutopilotStuckTime = Speed < AutopilotStuckSpeed ? AutopilotStuckTime + DeltaTime : 0.f;
+	if (AutopilotStuckTime > AutopilotStuckDelay)
+	{
+		AutopilotStuckTime = 0.f;
+		AutopilotReverseTimeRemaining = AutopilotReverseDuration;
+	}
+
 	Autopilot.Steer = FMath::Clamp(AngleToAim / AutopilotFullSteerAngle, -1.f, 1.f);
-	Autopilot.Throttle = FMath::Abs(AngleToAim) > AutopilotSlowAngle ? AutopilotSlowThrottle : 1.f;
+	Autopilot.Throttle = (FMath::Abs(AngleToAim) > AutopilotSlowAngle ? AutopilotSlowThrottle : 1.f) * ThrottleScale;
 #endif
 	return Autopilot;
 }
@@ -590,6 +667,15 @@ void UHoverMovementComponent::LogStep(float DeltaTime)
 			SimState.bGrounded ? 1 : 0,
 			SimState.DriftBoost.bDrifting ? 1 : 0, SimState.DriftBoost.OverslideTimeRemaining, SimState.DriftBoost.BoostCharge, SimState.DriftBoost.bBoosting ? 1 : 0,
 			SimState.WallClearance, SimState.DriftBoost.bClosePassCharging ? 1 : 0, SimState.DriftBoost.ClosePassLockoutRemaining);
+
+		// Only while something is in the modifier stack, so runs without modifiers log exactly what they always did.
+		if (Modifiers && !Modifiers->GetStack().GetModifiers().IsEmpty())
+		{
+			const FVehicleStatModifiers& Totals = Modifiers->GetStack().GetTotals();
+			UE_LOG(LogCosmicVehicle, Log, TEXT("MODS %s t=%.3f count=%d maxSpeed=%.4f accel=%.4f steering=%.4f grip=%.4f ram=%.4f stability=%.4f"),
+				*GetNameSafe(GetOwner()), ElapsedSimTime, Modifiers->GetStack().GetModifiers().Num(),
+				Totals.MaxSpeed, Totals.Acceleration, Totals.Steering, Totals.Grip, Totals.RamPower, Totals.Stability);
+		}
 	}
 #endif
 }
@@ -620,7 +706,12 @@ void UHoverMovementComponent::RunTestHelpers()
 		bTestCharacterApplied = true;
 		if (ARaceVehicle* Vehicle = Cast<ARaceVehicle>(GetOwner()))
 		{
-			Vehicle->SetCharacter(Settings->FindCharacter(FString::FromInt(PlayerCharacterIndex)));
+			// With -DPCVars the game mode already did this before the first physics step; do not apply it twice.
+			const UCharacterDefinition* TestCharacter = Settings->FindCharacter(FString::FromInt(PlayerCharacterIndex));
+			if (Vehicle->GetCharacter() != TestCharacter)
+			{
+				Vehicle->SetCharacter(TestCharacter);
+			}
 		}
 	}
 

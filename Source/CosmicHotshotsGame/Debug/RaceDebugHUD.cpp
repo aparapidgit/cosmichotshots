@@ -3,10 +3,13 @@
 #include "Engine/Canvas.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
+#include "Passive/PassiveBase.h"
+#include "Passive/VehiclePassiveComponent.h"
 #include "Race/RaceDebug.h"
 #include "Race/RaceGameState.h"
 #include "Vehicle/HoverMovementComponent.h"
 #include "Vehicle/RaceVehicle.h"
+#include "Vehicle/VehicleModifierComponent.h"
 #include "Vehicle/VehicleStatsComponent.h"
 #include "Vehicle/VehicleTuningData.h"
 
@@ -40,6 +43,11 @@ namespace
 	constexpr float TablePadding = 6.f;
 	constexpr float CmToMeters = 0.01f;
 	const FLinearColor OwnRowColour(1.f, 0.85f, 0.2f, 1.f);
+
+	// Passive and modifier list (top right).
+	constexpr float PassivesLeftFraction = 0.62f;
+	constexpr float PassivesWidthFraction = 0.36f;
+	constexpr float PercentScale = 100.f;
 }
 
 void ARaceDebugHUD::DrawHUD()
@@ -48,6 +56,7 @@ void ARaceDebugHUD::DrawHUD()
 
 #if !UE_BUILD_SHIPPING
 	DrawRaceStandings();
+	DrawPassives();
 
 	if (CVarBoostBar.GetValueOnGameThread() == 0 || !Canvas)
 	{
@@ -140,6 +149,55 @@ void ARaceDebugHUD::DrawRaceStandings()
 			Standing.Progress * CmToMeters, Standing.LateralOffset * CmToMeters, *GapText,
 			Standing.bFinished ? *FString::Printf(TEXT("  FINISHED %.2f s"), Standing.FinishTime) : TEXT(""));
 		DrawText(Line, Standing.Vehicle == OwnPawn ? OwnRowColour : FLinearColor::White, Left, Top);
+		Top += TableLineHeight;
+	}
+#endif
+}
+
+void ARaceDebugHUD::DrawPassives()
+{
+#if !UE_BUILD_SHIPPING
+	if (CosmicHotshots::RaceCVars::DebugPassives.GetValueOnGameThread() == 0 || !Canvas)
+	{
+		return;
+	}
+
+	const ARaceVehicle* Vehicle = Cast<ARaceVehicle>(GetOwningPawn());
+	if (!Vehicle)
+	{
+		return;
+	}
+
+	const UVehiclePassiveComponent* PassiveComponent = Vehicle->GetPassive();
+	const TArray<FVehicleModifier>& Modifiers = Vehicle->GetModifiers()->GetStack().GetModifiers();
+	const FVehicleStatModifiers& Totals = Vehicle->GetModifiers()->GetStack().GetTotals();
+
+	const float Left = Canvas->ClipX * PassivesLeftFraction;
+	float Top = Canvas->ClipY * TableTopFraction;
+	DrawRect(BackColour, Left - TablePadding, Top - TablePadding, Canvas->ClipX * PassivesWidthFraction + 2.f * TablePadding,
+		TableLineHeight * (Modifiers.Num() + 2) + 2.f * TablePadding);
+
+	FString PassiveLine = TEXT("Passive: none");
+	if (const UPassiveBase* Passive = PassiveComponent->GetPassive())
+	{
+		PassiveLine = PassiveComponent->IsPassiveRunning() ? Passive->GetDebugString() : FString(TEXT("Passive: switched OFF"));
+	}
+	DrawText(PassiveLine, OwnRowColour, Left, Top);
+	Top += TableLineHeight;
+
+	DrawText(FString::Printf(TEXT("Stack total: max speed %+.1f%%  accel %+.1f%%"),
+		(Totals.MaxSpeed - 1.f) * PercentScale, (Totals.Acceleration - 1.f) * PercentScale), FLinearColor::White, Left, Top);
+	Top += TableLineHeight;
+
+	for (const FVehicleModifier& Modifier : Modifiers)
+	{
+		const float TimeRemaining = Modifier.GetTimeRemaining();
+		const FString TimeText = Modifier.bEnding ? FString(TEXT("fading out"))
+			: TimeRemaining < 0.f ? FString(TEXT("until removed")) : FString::Printf(TEXT("%.1f s left"), TimeRemaining);
+		DrawText(FString::Printf(TEXT("%s  %s %s%.3f  strength %.0f%%  %s"),
+			*Modifier.Spec.SourceId.ToString(), *UEnum::GetDisplayValueAsText(Modifier.Spec.Stat).ToString(),
+			Modifier.Spec.Op == EVehicleModifierOp::Multiply ? TEXT("x") : TEXT("+"), Modifier.Spec.Value,
+			Modifier.Strength * PercentScale, *TimeText), FLinearColor::White, Left, Top);
 		Top += TableLineHeight;
 	}
 #endif

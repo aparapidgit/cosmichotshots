@@ -14,3 +14,10 @@ namespace CosmicHotshots::RaceCVars
 		TEXT("ch.Debug.TrackSpline"), 0,
 		TEXT("1 = draw the track line, the checkpoints and each car's projection onto the line."), ECVF_Cheat);
 }
+
+namespace CosmicHotshots::RaceCVars
+{
+	TAutoConsoleVariable<int32> DebugPassives(
+		TEXT("ch.Debug.Passives"), 0,
+		TEXT("1 = draw the own car's passive state and active modifiers (strength, time left) on the dev HUD."), ECVF_Cheat);
+}

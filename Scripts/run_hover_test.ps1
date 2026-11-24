@@ -19,6 +19,17 @@
 #         .\Scripts\run_hover_test.ps1 -Fps 60 -Seconds 7.1 -LogInterval 0.5 -ExtraCmds "ch.Test.ScriptedInput 5,ch.Test.SpawnDummyAhead 3000,ch.Test.DummyLateralOffset -500"
 # Lap test (test autopilot drives one lap: checkpoints, LAP, FINISH, RACE_FINISHED):
 #         .\Scripts\run_hover_test.ps1 -Fps 60 -Seconds 90 -LogInterval 5 -TimeoutSeconds 900 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Race.Laps 1"
+# Race with test bots (player on autopilot + 7 bots, each with its own line and throttle; overtakes, contact, results):
+#         .\Scripts\run_hover_test.ps1 -Fps 60 -Seconds 200 -LogInterval 30 -TimeoutSeconds 900 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Race.Laps 2,ch.Test.Bots 7"
+#   IMPACT lines are written once per frame, so their ORDER among the other lines differs between frame rates;
+#   compare sorted logs. The lines themselves must match.
+# Modifier stack on its own (max speed x1.2 at 2 s: 1 s fade in, 2 s hold, 1 s fade out; MODS lines):
+#         .\Scripts\run_hover_test.ps1 -Fps 60 -Seconds 7.1 -LogInterval 0.5 -ExtraCmds "ch.Test.ScriptedInput 5,ch.Test.SpeedModifier 1.2"
+# Spark passive (roster index 2) from the last grid slot against 3 bots (PASSIVE lines: on while last, off after an overtake):
+#         .\Scripts\run_hover_test.ps1 -Fps 60 -Seconds 110 -LogInterval 10 -TimeoutSeconds 900 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Race.Laps 1,ch.Test.Bots 3,ch.Test.PlayerCharacter 2,ch.Test.PlayerGridSlot 7"
+# Sulgwen passive (roster index 3) from the last grid slot against 5 bots (chain level rises with overtakes, ends after 4 s):
+#         .\Scripts\run_hover_test.ps1 -Fps 60 -Seconds 110 -LogInterval 10 -TimeoutSeconds 900 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Race.Laps 1,ch.Test.Bots 5,ch.Test.PlayerCharacter 3,ch.Test.PlayerGridSlot 7"
+#   Add "ch.Passives.Enabled 0" to switch every passive off.
 # Race lines (LogCosmicRace) carry the race time of the physics step and must match at every frame rate too.
 # The Unreal editor must be closed.
 

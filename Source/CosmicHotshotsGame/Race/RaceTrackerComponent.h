@@ -22,6 +22,36 @@
 class ARaceVehicle;
 class FTrackSplineTable;
 
+/** One driver in a FRaceStepView. */
+struct FRaceStepRacer
+{
+	/** On the track and ranked (has a body and was placed on the track line). */
+	bool bInRace = false;
+	bool bStarted = false;
+	bool bFinished = false;
+	int32 Rank = 0;
+	int32 LapsCompleted = 0;
+	double Progress = 0.0;
+	FRaceGap GapToCarAhead;
+};
+
+/**
+ * Race state after one physics step, for code that runs inside other components' physics steps
+ * (passives). Small on purpose: it is copied every step.
+ */
+struct FRaceStepView
+{
+	/** By driver id. */
+	TArray<FRaceStepRacer> Racers;
+	/** What happened in that step (overtakes, laps, finishes). */
+	TArray<FRaceEvent> Events;
+	/** Drivers with bInRace. */
+	int32 NumInRace = 0;
+	FRaceGap LeaderToSecondGap;
+	double RaceTime = 0.0;
+	bool bRaceFinished = false;
+};
+
 /** Snapshot of the race state for the game thread. */
 struct FRaceTrackerSnapshot
 {
@@ -62,9 +92,14 @@ public:
 	bool TakeUpdate(FRaceTrackerSnapshot& OutSnapshot, TArray<FRaceEvent>& OutEvents);
 
 	/**
-	 * Race state of the previous step, for code that runs inside the fixed physics step
-	 * (future passives). Reading it anywhere else is not safe.
+	 * Race state of the PREVIOUS physics step, for code inside another component's physics step
+	 * (passives). SimTime is the value the engine passed to that step. The engine does not fix the
+	 * order in which components step, so this returns the same view whether the tracker has
+	 * already run its own part of the current step or not. Every step's events are seen exactly once.
 	 */
+	const FRaceStepView& GetViewForStep(float SimTime) const;
+
+	/** Full step state (passing-time history, pair states). Only for code that knows the tracker has finished its step. */
 	const FRaceTrackerState& GetStepState() const { return StepState; }
 
 private:
@@ -87,6 +122,13 @@ private:
 	TArray<TOptional<FVector>> StepLocations;
 	TArray<FRaceEvent> StepEvents;
 	double NextLogTime = 0.0;
+
+	/** Views of the two newest steps (see GetViewForStep). */
+	FRaceStepView NewestView;
+	FRaceStepView OlderView;
+	/** SimTime of the step that produced NewestView. */
+	float NewestViewSimTime = 0.f;
+	bool bHasView = false;
 
 	/** Handed to the game thread. */
 	FRaceTrackerSnapshot PublishedSnapshot;

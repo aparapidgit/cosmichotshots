@@ -23,6 +23,8 @@ namespace Chaos
 
 class FTrackSplineTable;
 class UPrimitiveComponent;
+class UVehicleModifierComponent;
+class UVehiclePassiveComponent;
 class UVehicleStatsComponent;
 class UVehicleTuningData;
 
@@ -42,6 +44,9 @@ public:
 	/** Source of the stat multipliers applied on top of the base tuning. Optional. */
 	void SetStats(const UVehicleStatsComponent* InStats);
 
+	/** The modifier stack to advance and the passive to run at the start of every physics step. Both optional. */
+	void SetModifierComponents(UVehicleModifierComponent* InModifiers, UVehiclePassiveComponent* InPassive);
+
 	/** Latest driver intent. Called on the game thread by the owning vehicle. */
 	void SetInput(const FVehicleInputState& InInput);
 
@@ -50,6 +55,12 @@ public:
 	 * The impact component turns them into feedback (camera shake, rumble, VFX, audio).
 	 */
 	void TakePendingImpacts(TArray<FVehicleImpactInfo>& OutImpacts);
+
+	/**
+	 * Test helper (ch.Test.Bots): from now on this car ignores its driver and drives the test autopilot
+	 * along a line LateralOffset cm beside the track centre, with full throttle scaled by ThrottleScale.
+	 */
+	void SetTestBot(float LateralOffset, float ThrottleScale);
 
 	/** State of the last physics step (for debug display and, later, HUD/VFX). */
 	const FHoverSimState& GetSimState() const { return SimState; }
@@ -80,7 +91,19 @@ private:
 	 * throttle, so a headless test can drive whole laps. Called from the physics step.
 	 * NOT the race AI: that gets its own controller in Phase 2.
 	 */
-	FVehicleInputState GetAutopilotInput(const Chaos::FRigidBodyHandle_Internal& Body);
+	FVehicleInputState GetAutopilotInput(const Chaos::FRigidBodyHandle_Internal& Body, float LateralOffset, float ThrottleScale, float DeltaTime);
+
+	/** Autopilot: seconds spent (almost) standing still; long enough means stuck against something. */
+	float AutopilotStuckTime = 0.f;
+	/** Autopilot: seconds of reversing left to get free. */
+	float AutopilotReverseTimeRemaining = 0.f;
+
+	/** Test helper (ch.Test.Bots): this car is a test bot and drives the autopilot. */
+	bool bTestBot = false;
+	/** Test bot: its line beside the track centre line (cm, positive = right). */
+	float TestBotLateralOffset = 0.f;
+	/** Test bot: full throttle is scaled by this, so bots differ in pace. */
+	float TestBotThrottleScale = 1.f;
 
 	/** Test helper: the track line for the autopilot. Immutable, safe to read in the physics step. */
 	TSharedPtr<const FTrackSplineTable> AutopilotTrack;
@@ -95,6 +118,15 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<const UVehicleStatsComponent> Stats;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UVehicleModifierComponent> Modifiers;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UVehiclePassiveComponent> Passive;
+
+	/** Test helper (ch.Test.SpeedModifier): the test modifier has been added. */
+	bool bTestModifierApplied = false;
 
 	FVehicleInputState Input;
 	FHoverSimState SimState;

@@ -80,6 +80,18 @@ namespace CosmicHotshots::VehicleCVars
 		TEXT("ch.Test.DummyCharacter"), -1,
 		TEXT("Test helper: roster index of the character given to the dummy car. Negative = project default."), ECVF_Cheat);
 
+	TAutoConsoleVariable<int32> TestBots(
+		TEXT("ch.Test.Bots"), 0,
+		TEXT("Test helper: number of test bots (0..7) on the free grid slots, driving the test autopilot. Set at startup (-DPCVars) or before the level loads."), ECVF_Cheat);
+
+	TAutoConsoleVariable<int32> PlayerGridSlot(
+		TEXT("ch.Test.PlayerGridSlot"), -1,
+		TEXT("Test helper: grid slot (0 = pole) the first player starts from. Negative = normal order. Set at startup (-DPCVars)."), ECVF_Cheat);
+
+	TAutoConsoleVariable<float> TestSpeedModifier(
+		TEXT("ch.Test.SpeedModifier"), 0.f,
+		TEXT("Test helper: max-speed multiplier added to the player's modifier stack at 2 s (1 s fade in, 2 s hold, 1 s fade out). 0 = off."), ECVF_Cheat);
+
 	TAutoConsoleVariable<float> StartBoostCharge(
 		TEXT("ch.Test.StartBoostCharge"), -1.f,
 		TEXT("Test helper: boost meter value (0..1) given to the player's car at start. Negative = leave as is."), ECVF_Cheat);

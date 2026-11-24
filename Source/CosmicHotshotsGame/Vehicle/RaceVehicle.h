@@ -17,6 +17,8 @@ class URaceCameraComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
 class UVehicleHullComponent;
+class UVehicleModifierComponent;
+class UVehiclePassiveComponent;
 class UVehicleStatsComponent;
 class UVehicleTuningData;
 
@@ -43,6 +45,8 @@ public:
 	URaceCameraComponent* GetRaceCamera() const { return RaceCamera; }
 	UVehicleImpactComponent* GetImpact() const { return Impact; }
 	UVehicleStatsComponent* GetStats() const { return Stats; }
+	UVehicleModifierComponent* GetModifiers() const { return Modifiers; }
+	UVehiclePassiveComponent* GetPassive() const { return Passive; }
 
 	/** Mass of the vehicle's rigid body in kg. */
 	float GetBodyMass() const;
@@ -84,6 +88,14 @@ protected:
 	/** Final values of this vehicle (base tuning x character modifiers). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle")
 	TObjectPtr<UVehicleStatsComponent> Stats;
+
+	/** Temporary stat bonuses and penalties (passives, items, abilities). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle")
+	TObjectPtr<UVehicleModifierComponent> Modifiers;
+
+	/** Runs the character's passive. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle")
+	TObjectPtr<UVehiclePassiveComponent> Passive;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle")
 	TObjectPtr<UHoverMovementComponent> HoverMovement;

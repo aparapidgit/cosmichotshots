@@ -1,5 +1,6 @@
 #include "Vehicle/VehicleStatsComponent.h"
 
+#include "Vehicle/VehicleModifierComponent.h"
 #include "Vehicle/VehicleTuningData.h"
 
 UVehicleStatsComponent::UVehicleStatsComponent()
@@ -13,9 +14,30 @@ void UVehicleStatsComponent::SetBase(const UVehicleTuningData* InTuning, const F
 	CharacterModifiers = InCharacterModifiers;
 }
 
+void UVehicleStatsComponent::SetModifierSource(const UVehicleModifierComponent* InModifiers)
+{
+	ModifierSource = InModifiers;
+}
+
+FVehicleStatModifiers UVehicleStatsComponent::GetModifiers() const
+{
+	FVehicleStatModifiers Combined = CharacterModifiers;
+	if (ModifierSource)
+	{
+		const FVehicleStatModifiers& Stack = ModifierSource->GetStack().GetTotals();
+		Combined.MaxSpeed *= Stack.MaxSpeed;
+		Combined.Acceleration *= Stack.Acceleration;
+		Combined.Steering *= Stack.Steering;
+		Combined.Grip *= Stack.Grip;
+		Combined.RamPower *= Stack.RamPower;
+		Combined.Stability *= Stack.Stability;
+	}
+	return Combined;
+}
+
 float UVehicleStatsComponent::GetMaxSpeedKmh() const
 {
-	return Tuning ? Tuning->MaxSpeedKmh * CharacterModifiers.MaxSpeed : 0.f;
+	return Tuning ? Tuning->MaxSpeedKmh * GetModifiers().MaxSpeed : 0.f;
 }
 
 float UVehicleStatsComponent::GetMassKg() const
@@ -25,10 +47,10 @@ float UVehicleStatsComponent::GetMassKg() const
 
 float UVehicleStatsComponent::GetRamPower() const
 {
-	return Tuning ? Tuning->RamPower * CharacterModifiers.RamPower : 1.f;
+	return Tuning ? Tuning->RamPower * GetModifiers().RamPower : 1.f;
 }
 
 float UVehicleStatsComponent::GetStability() const
 {
-	return Tuning ? Tuning->Stability * CharacterModifiers.Stability : 1.f;
+	return Tuning ? Tuning->Stability * GetModifiers().Stability : 1.f;
 }

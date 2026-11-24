@@ -30,5 +30,17 @@ private:
 	 */
 	void SpawnTestDummy();
 
+	/**
+	 * Test helper (ch.Test.Bots): fills the free grid slots with test bots that drive the test autopilot,
+	 * each with its own line, throttle and roster character. Same first-tick timing as the dummy. NOT the race AI.
+	 */
+	void SpawnTestBots();
+
+	/** Grid slot of a human player (join order; the first player's slot can be overridden with ch.Test.PlayerGridSlot). */
+	int32 GetPlayerGridSlot(int32 PlayerIndex, int32 NumSlots) const;
+
+	/** PlayerStarts in grid order (sorted by name). */
+	TArray<class APlayerStart*> GetSortedPlayerStarts() const;
+
 	bool bTestDummyChecked = false;
 };

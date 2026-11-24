@@ -267,6 +267,30 @@ void URaceTrackerComponent::AsyncPhysicsTickComponent(float DeltaTime, float Sim
 
 	LogStep(StepEvents);
 
+	// Keep the two newest step views for other components' physics steps.
+	Swap(NewestView, OlderView);
+	NewestView.Racers.SetNum(StepState.Racers.Num());
+	NewestView.NumInRace = 0;
+	for (int32 Id = 0; Id < StepState.Racers.Num(); ++Id)
+	{
+		const FRacerSimState& Racer = StepState.Racers[Id];
+		FRaceStepRacer& View = NewestView.Racers[Id];
+		View.bInRace = Racer.bInitialised && Racer.bActive;
+		View.bStarted = Racer.bStarted;
+		View.bFinished = Racer.bFinished;
+		View.Rank = Racer.Rank;
+		View.LapsCompleted = Racer.LapsCompleted;
+		View.Progress = Racer.Progress;
+		View.GapToCarAhead = Racer.GapToCarAhead;
+		NewestView.NumInRace += View.bInRace ? 1 : 0;
+	}
+	NewestView.Events = StepEvents;
+	NewestView.LeaderToSecondGap = StepState.LeaderToSecondGap;
+	NewestView.RaceTime = StepState.RaceTime;
+	NewestView.bRaceFinished = StepState.bRaceFinished;
+	NewestViewSimTime = SimTime;
+	bHasView = true;
+
 	FScopeLock ScopeLock(&Lock);
 	PublishedSnapshot.Racers = StepState.Racers;
 	PublishedSnapshot.RankOrder = StepState.RankOrder;
@@ -323,6 +347,12 @@ void URaceTrackerComponent::LogStep(const TArray<FRaceEvent>& Events)
 		}
 	}
 #endif
+}
+
+const FRaceStepView& URaceTrackerComponent::GetViewForStep(float SimTime) const
+{
+	// Tracker already stepped in this physics step: its newest view is of the current step, so hand out the one before.
+	return (bHasView && NewestViewSimTime == SimTime) ? OlderView : NewestView;
 }
 
 bool URaceTrackerComponent::TakeUpdate(FRaceTrackerSnapshot& OutSnapshot, TArray<FRaceEvent>& OutEvents)

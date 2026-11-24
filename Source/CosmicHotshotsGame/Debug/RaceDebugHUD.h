@@ -20,4 +20,7 @@ public:
 private:
 	/** Standings table (ch.Debug.Race): rank, lap, checkpoint, progress, gaps. */
 	void DrawRaceStandings();
+
+	/** Own car's passive and modifier stack (ch.Debug.Passives). */
+	void DrawPassives();
 };

@@ -16,3 +16,9 @@ namespace CosmicHotshots::RaceCVars
 	/** 1 = draw the track line, the checkpoints and every car's projection onto the line. */
 	extern TAutoConsoleVariable<int32> DebugTrack;
 }
+
+namespace CosmicHotshots::RaceCVars
+{
+	/** 1 = draw the own car's passive state and its active modifiers (strength, time left) on the dev HUD. */
+	extern TAutoConsoleVariable<int32> DebugPassives;
+}

@@ -9,7 +9,10 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Passive/PassiveBase.h"
+#include "Passive/VehiclePassiveComponent.h"
 #include "Vehicle/HoverMovementComponent.h"
+#include "Vehicle/VehicleModifierComponent.h"
 #include "Vehicle/VehicleHullComponent.h"
 #include "Vehicle/VehicleImpactComponent.h"
 #include "Vehicle/VehicleStatsComponent.h"
@@ -49,6 +52,8 @@ ARaceVehicle::ARaceVehicle()
 	}
 
 	Stats = CreateDefaultSubobject<UVehicleStatsComponent>(TEXT("Stats"));
+	Modifiers = CreateDefaultSubobject<UVehicleModifierComponent>(TEXT("Modifiers"));
+	Passive = CreateDefaultSubobject<UVehiclePassiveComponent>(TEXT("Passive"));
 
 	HoverMovement = CreateDefaultSubobject<UHoverMovementComponent>(TEXT("HoverMovement"));
 
@@ -118,6 +123,8 @@ void ARaceVehicle::ApplyCharacter()
 	const UVehicleTuningData* ActiveTuning = GetActiveTuning();
 
 	Stats->SetBase(ActiveTuning, ActiveCharacter ? ActiveCharacter->StatModifiers : FVehicleStatModifiers());
+	Stats->SetModifierSource(Modifiers);
+	Passive->SetModifiers(Modifiers);
 
 	ApplyBodyShape(*ActiveTuning);
 	ApplyBodyPhysics(*ActiveTuning);
@@ -125,6 +132,8 @@ void ARaceVehicle::ApplyCharacter()
 
 	HoverMovement->SetTuning(ActiveTuning);
 	HoverMovement->SetStats(Stats);
+	HoverMovement->SetModifierComponents(Modifiers, Passive);
+	Passive->SetDefinition(ActiveCharacter ? ActiveCharacter->PassiveDefinition.Get() : nullptr);
 	Impact->Initialize(HoverMovement);
 }
 
