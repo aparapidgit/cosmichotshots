@@ -3,6 +3,8 @@
 #include "Engine/Canvas.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
+#include "Item/ItemDefinition.h"
+#include "Item/ItemSystemComponent.h"
 #include "Passive/PassiveBase.h"
 #include "Passive/VehiclePassiveComponent.h"
 #include "Race/RaceDebug.h"
@@ -175,7 +177,7 @@ void ARaceDebugHUD::DrawPassives()
 	const float Left = Canvas->ClipX * PassivesLeftFraction;
 	float Top = Canvas->ClipY * TableTopFraction;
 	DrawRect(BackColour, Left - TablePadding, Top - TablePadding, Canvas->ClipX * PassivesWidthFraction + 2.f * TablePadding,
-		TableLineHeight * (Modifiers.Num() + 2) + 2.f * TablePadding);
+		TableLineHeight * (Modifiers.Num() + 3) + 2.f * TablePadding);
 
 	FString PassiveLine = TEXT("Passive: none");
 	if (const UPassiveBase* Passive = PassiveComponent->GetPassive())
@@ -184,6 +186,18 @@ void ARaceDebugHUD::DrawPassives()
 	}
 	DrawText(PassiveLine, OwnRowColour, Left, Top);
 	Top += TableLineHeight;
+
+	// Item slot (dev stand-in for the HUD slot).
+	if (const ARaceGameState* RaceState = GetWorld()->GetGameState<ARaceGameState>())
+	{
+		const FItemSlot Slot = RaceState->GetItemSystem()->GetSlot(Vehicle);
+		const FString ItemName = Slot.Item ? Slot.Item->DisplayName.ToString() : FString(TEXT("?"));
+		const FString SlotText = Slot.State == EItemSlotState::Ready ? FString::Printf(TEXT("[%s] READY"), *ItemName)
+			: Slot.State == EItemSlotState::Rolling ? FString::Printf(TEXT("roulette... %.1f s"), Slot.RollTimeRemaining)
+			: FString(TEXT("(empty)"));
+		DrawText(FString::Printf(TEXT("Item: %s   replaced x%d"), *SlotText, Slot.ReplaceCount), OwnRowColour, Left, Top);
+		Top += TableLineHeight;
+	}
 
 	DrawText(FString::Printf(TEXT("Stack total: max speed %+.1f%%  accel %+.1f%%"),
 		(Totals.MaxSpeed - 1.f) * PercentScale, (Totals.Acceleration - 1.f) * PercentScale), FLinearColor::White, Left, Top);

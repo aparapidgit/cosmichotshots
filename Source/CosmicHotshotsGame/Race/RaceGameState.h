@@ -15,6 +15,7 @@
 #include "RaceGameState.generated.h"
 
 class ARaceVehicle;
+class UItemSystemComponent;
 class URaceTrackerComponent;
 struct FTrackFrame;
 
@@ -35,6 +36,7 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	URaceTrackerComponent* GetTracker() const { return Tracker; }
+	UItemSystemComponent* GetItemSystem() const { return ItemSystem; }
 
 	// Queries (game thread)
 
@@ -106,6 +108,10 @@ private:
 
 	UPROPERTY(VisibleAnywhere, Category = "Race")
 	TObjectPtr<URaceTrackerComponent> Tracker;
+
+	/** Item boxes, the roulette and every car's item slot. */
+	UPROPERTY(VisibleAnywhere, Category = "Race")
+	TObjectPtr<UItemSystemComponent> ItemSystem;
 
 	UPROPERTY(Replicated, VisibleInstanceOnly, Category = "Race")
 	ERacePhase RacePhase = ERacePhase::Inactive;

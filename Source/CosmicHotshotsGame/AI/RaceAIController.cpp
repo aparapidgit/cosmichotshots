@@ -2,6 +2,9 @@
 
 #include "AI/AIDifficultyData.h"
 #include "DrawDebugHelpers.h"
+#include "EngineUtils.h"
+#include "Item/ItemBox.h"
+#include "Item/ItemSystemComponent.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
 #include "Math/RandomStream.h"
@@ -28,15 +31,15 @@ namespace
 
 	const FName RubberBandSource(TEXT("AI.RubberBand"));
 
-	constexpr float KmhToCmPerSecond = 100000.f / 3600.f;
-	constexpr float CmPerSecondToKmh = 1.f / KmhToCmPerSecond;
+	constexpr float AIKmhToCmPerSecond = 100000.f / 3600.f;
+	constexpr float AICmPerSecondToKmh = 1.f / AIKmhToCmPerSecond;
 
 	/** The car's centre stays this far (cm) from the walls: half a car width plus a safety margin. */
-	constexpr float WallMargin = 250.f;
+	constexpr float AIWallMargin = 250.f;
 
 	// Debug drawing only.
-	constexpr float DebugPointSize = 14.f;
-	constexpr float DebugTextHeight = 220.f;
+	constexpr float AIDebugPointSize = 14.f;
+	constexpr float AIDebugTextHeight = 220.f;
 }
 
 ARaceAIController::ARaceAIController()
@@ -75,6 +78,25 @@ void ARaceAIController::OnPossess(APawn* InPawn)
 	Super::OnPossess(InPawn);
 
 	Track = ATrackSplineActor::FindTable(GetWorld());
+
+	// Where the item boxes are along the track. They exist by now: boxes are placed before the drivers.
+	BoxSpots.Reset();
+	if (Track.IsValid())
+	{
+		TArray<const AItemBox*> BoxActors;
+		for (TActorIterator<AItemBox> It(GetWorld()); It; ++It)
+		{
+			BoxActors.Add(*It);
+		}
+		BoxActors.Sort([](const AItemBox& A, const AItemBox& B) { return A.GetName() < B.GetName(); });
+		for (const AItemBox* Box : BoxActors)
+		{
+			const FTrackProjection Projection = Track->Project(Box->GetActorLocation());
+			FRaceAIBoxSpot& Spot = BoxSpots.AddDefaulted_GetRef();
+			Spot.TrackDistance = Projection.Distance;
+			Spot.LateralOffset = Projection.LateralOffset;
+		}
+	}
 	if (const ARaceVehicle* Vehicle = Cast<ARaceVehicle>(InPawn))
 	{
 		Vehicle->GetHoverMovement()->SetStepInputSource(this);
@@ -111,15 +133,15 @@ FRaceAIDriverParams ARaceAIController::BuildParams() const
 	if (Vehicle)
 	{
 		// Final top speed: character, passives and rubber banding included, so the driver uses what the car can do.
-		Params.TopSpeed = Vehicle->GetStats()->GetMaxSpeedKmh() * KmhToCmPerSecond;
+		Params.TopSpeed = Vehicle->GetStats()->GetMaxSpeedKmh() * AIKmhToCmPerSecond;
 		if (const UVehicleTuningData* Tuning = Vehicle->GetStats()->GetTuning())
 		{
-			Params.DriftMinSpeed = Tuning->DriftMinSpeedKmh * KmhToCmPerSecond;
+			Params.DriftMinSpeed = Tuning->DriftMinSpeedKmh * AIKmhToCmPerSecond;
 		}
 	}
 	if (Track.IsValid())
 	{
-		Params.UsableHalfWidth = FMath::Max(Track->GetHalfWidth() - WallMargin, 0.f);
+		Params.UsableHalfWidth = FMath::Max(Track->GetHalfWidth() - AIWallMargin, 0.f);
 	}
 
 	Params.TopSpeedFactor = Data->TopSpeedFactor;
@@ -183,6 +205,21 @@ FVehicleInputState ARaceAIController::GetStepInput(const FVehicleStepInputContex
 	Input.ElapsedSimTime = Context.ElapsedSimTime;
 	Input.BoostCharge = Context.State ? Context.State->DriftBoost.BoostCharge : 0.f;
 	Input.Others = OtherCars;
+	// Only boxes that can be collected are worth lining up for (state after the previous step).
+	if (!ItemSystem.IsValid())
+	{
+		const ARaceGameState* RaceState = GetWorld() ? GetWorld()->GetGameState<ARaceGameState>() : nullptr;
+		ItemSystem = RaceState ? RaceState->GetItemSystem() : nullptr;
+	}
+	if (const UItemSystemComponent* Items = ItemSystem.Get())
+	{
+		const TArray<bool>& BoxesActive = Items->GetBoxesActiveForStep(Context.SimTime);
+		for (int32 BoxIndex = 0; BoxIndex < BoxSpots.Num(); ++BoxIndex)
+		{
+			BoxSpots[BoxIndex].bActive = BoxesActive.IsValidIndex(BoxIndex) && BoxesActive[BoxIndex];
+		}
+	}
+	Input.Boxes = BoxSpots;
 
 	return FRaceAIDriverSim::Step(*Track, BuildParams(), Input, DriverState);
 }
@@ -276,8 +313,8 @@ void ARaceAIController::DrawDebug() const
 
 	const UWorld* World = GetWorld();
 	DrawDebugLine(World, Vehicle->GetActorLocation(), DriverState.AimPoint, Colour, false, -1.f, 0, 4.f);
-	DrawDebugPoint(World, DriverState.AimPoint, DebugPointSize, Colour, false, -1.f);
-	DrawDebugString(World, Vehicle->GetActorLocation() + FVector::UpVector * DebugTextHeight,
-		FString::Printf(TEXT("%s  target %.0f km/h  rubber x%.3f"), ModeText, DriverState.TargetSpeed * CmPerSecondToKmh, RubberBandMultiplier),
+	DrawDebugPoint(World, DriverState.AimPoint, AIDebugPointSize, Colour, false, -1.f);
+	DrawDebugString(World, Vehicle->GetActorLocation() + FVector::UpVector * AIDebugTextHeight,
+		FString::Printf(TEXT("%s  target %.0f km/h  rubber x%.3f"), ModeText, DriverState.TargetSpeed * AICmPerSecondToKmh, RubberBandMultiplier),
 		nullptr, Colour, 0.f);
 }

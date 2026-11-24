@@ -9,6 +9,7 @@
 #include "EngineUtils.h"
 #include "Engine/World.h"
 #include "Game/CosmicHotshotsSettings.h"
+#include "Item/ItemBox.h"
 #include "GameFramework/PlayerController.h"
 #include "Vehicle/VehicleDebug.h"
 #include "GameFramework/PlayerStart.h"
@@ -48,15 +49,7 @@ void ARaceGameMode::Tick(float DeltaSeconds)
 	}
 	bGridFilled = true;
 
-	// The test track's item box placeholders (plain cubes tagged "ItemBox") must not block cars. The map has
-	// them with collision on, so it is switched off here until the real AItemBox actors replace them.
-	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
-	{
-		if (It->ActorHasTag(ItemBoxPlaceholderTag))
-		{
-			It->SetActorEnableCollision(false);
-		}
-	}
+	ReplaceItemBoxPlaceholders();
 
 #if !UE_BUILD_SHIPPING
 	{
@@ -176,6 +169,43 @@ void ARaceGameMode::SpawnTestBots()
 		++Spawned;
 	}
 #endif
+}
+
+void ARaceGameMode::ReplaceItemBoxPlaceholders()
+{
+	// The test track marks its item box spots with plain cubes tagged "ItemBox" (and the map has them with
+	// collision on). They never stay in a race: each one is hidden and, when item boxes are on, a real
+	// AItemBox takes its place. Levels built with AItemBox / AItemBoxCluster actors need none of this.
+	TArray<AActor*> Placeholders;
+	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+	{
+		if (It->ActorHasTag(ItemBoxPlaceholderTag) && !It->IsA<AItemBox>())
+		{
+			Placeholders.Add(*It);
+		}
+	}
+	// Fixed order, so box indices are the same in every run.
+	Placeholders.Sort([](const AActor& A, const AActor& B) { return A.GetName() < B.GetName(); });
+
+	const bool bItemBoxes = CosmicHotshots::RaceCVars::ItemBoxes.GetValueOnGameThread() != 0;
+	for (AActor* Placeholder : Placeholders)
+	{
+		Placeholder->SetActorEnableCollision(false);
+		Placeholder->SetActorHiddenInGame(true);
+		if (bItemBoxes)
+		{
+			GetWorld()->SpawnActor<AItemBox>(AItemBox::StaticClass(), Placeholder->GetActorLocation(), FRotator::ZeroRotator);
+		}
+	}
+
+	if (!bItemBoxes)
+	{
+		// "Item boxes off": boxes placed in the level directly go too.
+		for (TActorIterator<AItemBox> It(GetWorld()); It; ++It)
+		{
+			It->Destroy();
+		}
+	}
 }
 
 TArray<int32> ARaceGameMode::FindFreeGridSlots()

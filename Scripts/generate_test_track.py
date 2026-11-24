@@ -14,8 +14,9 @@ WHAT IT BUILDS (all engine basic cubes, no assets needed):
   - Checkpoints: TriggerBox actors tagged "Checkpoint" and "CP_<index>"
     (CP_0 is the start/finish line).
   - 8 PlayerStart actors on a 2x4 grid behind the start line.
-  - Item box placeholders: 6 clusters of 3 cubes (tag "ItemBox") across the track.
-    They are EMPTY placeholders; replace with the real AItemBox actor later.
+  - Item boxes: 6 ItemBoxCluster actors, each a row of 3 boxes across the track.
+    (Maps generated before the item system have plain cubes tagged "ItemBox" instead;
+    the game hides those and puts real item boxes in their place when a race starts.)
   - Race line: one TrackSplineActor through the centre line (point 0 = start line).
     To add or refresh ONLY the race line in an existing map, run place_track_spline.py.
 Track layout: long start straight with a hill right after the line, wide
@@ -238,23 +239,15 @@ def build_in_unreal():
             ps.set_actor_label("GridSlot_%d" % (slot + 1))
             ps.set_folder_path(FOLDER + "/Grid")
 
-        # item box placeholders (tag "ItemBox"), clusters of 3 across the track
+        # item boxes: one ItemBoxCluster actor per spot; it spawns its row of boxes when the race starts
         for ci, frac in enumerate(ITEM_BOX_SPOTS):
             pos, yaw = sample_at(pts, length, length * frac)
-            nx, ny = -math.sin(math.radians(yaw)), math.cos(math.radians(yaw))
-            for bi, lat in enumerate(ITEM_BOX_LATERAL_M):
-                bx = _spawn_box(sub, mesh,
-                                (pos[0] + nx * lat, pos[1] + ny * lat,
-                                 pos[2] + ITEM_BOX_HOVER_M),
-                                yaw + 45.0, 0.0,
-                                (ITEM_BOX_SIZE_M, ITEM_BOX_SIZE_M, ITEM_BOX_SIZE_M),
-                                "ItemBox_%02d_%d" % (ci, bi), FOLDER + "/ItemBoxes")
-                bx.set_editor_property("tags", [unreal.Name("ItemBox")])
-                try:  # placeholders must not block the vehicle
-                    bx.static_mesh_component.set_collision_enabled(
-                        unreal.CollisionEnabled.NO_COLLISION)
-                except Exception:
-                    pass
+            loc = unreal.Vector(pos[0] * UU, pos[1] * UU, (pos[2] + ITEM_BOX_HOVER_M) * UU)
+            cluster = sub.spawn_actor_from_class(unreal.ItemBoxCluster, loc,
+                                                 unreal.Rotator(roll=0.0, pitch=0.0, yaw=yaw))
+            cluster.set_actor_label("ItemBoxCluster_%02d" % ci)
+            cluster.set_folder_path(FOLDER + "/ItemBoxes")
+            cluster.set_editor_property("lateral_offsets", [lat * UU for lat in ITEM_BOX_LATERAL_M])
 
         place_track_spline(sub, pts)
 

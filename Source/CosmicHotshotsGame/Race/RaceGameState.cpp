@@ -1,6 +1,7 @@
 #include "Race/RaceGameState.h"
 
 #include "CosmicHotshotsGame.h"
+#include "Item/ItemSystemComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Race/RacePlayerState.h"
 #include "Race/RaceTrackerComponent.h"
@@ -13,6 +14,8 @@ ARaceGameState::ARaceGameState()
 	PrimaryActorTick.TickGroup = TG_PostPhysics;
 
 	Tracker = CreateDefaultSubobject<URaceTrackerComponent>(TEXT("RaceTracker"));
+	ItemSystem = CreateDefaultSubobject<UItemSystemComponent>(TEXT("ItemSystem"));
+	ItemSystem->SetTracker(Tracker);
 }
 
 void ARaceGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

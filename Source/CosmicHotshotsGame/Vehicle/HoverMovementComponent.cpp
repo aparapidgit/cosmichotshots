@@ -61,6 +61,11 @@ namespace
 
 	// Test helper: scripted mode 8 (drift chain). Distances along the track line in cm, times in seconds.
 	constexpr int32 DriftChainMode = 8;
+
+	// Test helper: scripted mode 9 (autopilot that presses the use-item button every so many seconds).
+	constexpr int32 ItemUseMode = 9;
+	constexpr double ItemUseInterval = 8.0;
+	constexpr double ItemUsePressLength = 0.1;
 	/** Speed cap (cm/s) until the drifts are done, and seconds it stays on after them. */
 	constexpr float DriftChainMaxSpeed = 2300.f;
 	/** Line beside the track centre (cm, negative = left = outside of the sweeper) while drifting: a drift tightens the turn, so it needs room on the inside. */
@@ -290,6 +295,10 @@ void UHoverMovementComponent::SetInput(const FVehicleInputState& InInput)
 	if (InInput.bUseAbility && !Input.bUseAbility)
 	{
 		bAbilityPressedLatch = true;
+	}
+	if (InInput.bUseItem && !Input.bUseItem)
+	{
+		bUseItemPressedLatch = true;
 	}
 	Input = InInput;
 }
@@ -608,12 +617,19 @@ void UHoverMovementComponent::AsyncPhysicsTickComponent(float DeltaTime, float S
 		}
 		else
 		{
-			StepInput = ScriptedMode == AutopilotMode ? GetAutopilotInput(*Body, 0.f, 1.f, DeltaTime, 0.f) : GetScriptedTestInput(ScriptedMode, ElapsedSimTime);
+			const bool bItemMode = ScriptedMode == ItemUseMode;
+			StepInput = (ScriptedMode == AutopilotMode || bItemMode) ? GetAutopilotInput(*Body, 0.f, 1.f, DeltaTime, 0.f) : GetScriptedTestInput(ScriptedMode, ElapsedSimTime);
+			if (bItemMode)
+			{
+				// Mode 9: the autopilot, pressing the use-item button briefly at regular intervals.
+				StepInput.bUseItem = FMath::Fmod(ElapsedSimTime, ItemUseInterval) < ItemUsePressLength;
+			}
 		}
 		bBoostPressed = StepInput.bBoost && !bScriptedBoostWasHeld;
 		bScriptedBoostWasHeld = StepInput.bBoost;
 		bAbilityPressed = StepInput.bUseAbility && !bScriptedAbilityWasHeld;
 		bScriptedAbilityWasHeld = StepInput.bUseAbility;
+		bScriptedItemInput = true;
 	}
 #endif
 
@@ -635,6 +651,17 @@ void UHoverMovementComponent::AsyncPhysicsTickComponent(float DeltaTime, float S
 		bStepBoostWasHeld = StepInput.bBoost;
 		bAbilityPressed = StepInput.bUseAbility && !bStepAbilityWasHeld;
 		bStepAbilityWasHeld = StepInput.bUseAbility;
+	}
+
+	// Use-item presses are counted and stamped with this step; the item system handles them in its next step.
+	const bool bUseItemPressed = (StepInputSource || bScriptedItemInput) ? (StepInput.bUseItem && !bStepUseItemWasHeld) : bUseItemPressedLatch;
+	bStepUseItemWasHeld = StepInput.bUseItem;
+	bUseItemPressedLatch = false;
+	bScriptedItemInput = false;
+	if (bUseItemPressed)
+	{
+		++UseItemPressCount;
+		UseItemPressSimTime = SimTime;
 	}
 
 	// Temporary bonuses first: run durations and fades, then let the passive react to the race state

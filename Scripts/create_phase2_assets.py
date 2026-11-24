@@ -8,6 +8,8 @@ Creates what is missing and never replaces what exists:
   /Game/Data/Characters/DA_Character_<Name>    Spark (blue), Sulgwen (purple), Freya (red), Killjoke (green), Glick (yellow),
                                               Wilqis (white), Slot7 (orange), Slot8 (pink); each points at its passive
   /Game/Data/AI/DA_AIDifficulty_<Level>       Easy, Normal, Hard: parameter sets of the computer drivers
+  /Game/Data/Items/DA_Item_Empty              the placeholder item (no effect)
+  /Game/Data/Items/DA_ItemLootTable_Default   loot table: Empty for every rank band
 
 The project settings (Config/DefaultGame.ini, section CosmicHotshotsSettings) point at
 DA_RaceTuning_Default (RaceTuning=) and list the characters in the roster (+Characters=).
@@ -22,6 +24,7 @@ RACE_DATA_DIR = "/Game/Data/Race"
 PASSIVE_DATA_DIR = "/Game/Data/Passives"
 CHARACTER_DATA_DIR = "/Game/Data/Characters"
 AI_DATA_DIR = "/Game/Data/AI"
+ITEM_DATA_DIR = "/Game/Data/Items"
 
 # (asset, display name, values that differ from the class defaults of UAIDifficultyData). Placeholders to tune.
 AI_DIFFICULTIES = [
@@ -106,6 +109,28 @@ def main():
             for property_name, value in values.items():
                 difficulty.set_editor_property(property_name, value)
             unreal.EditorAssetLibrary.save_loaded_asset(difficulty)
+
+    # --- items: one placeholder item and a loot table that gives it to every race place
+    empty_item, created = create_data_asset(ITEM_DATA_DIR, "DA_Item_Empty", unreal.ItemDefinition)
+    if created:
+        empty_item.set_editor_property("item_id", "Empty")
+        empty_item.set_editor_property("display_name", "Empty")
+        unreal.EditorAssetLibrary.save_loaded_asset(empty_item)
+
+    loot_table, created = create_data_asset(ITEM_DATA_DIR, "DA_ItemLootTable_Default", unreal.ItemLootTable)
+    if created:
+        bands = []
+        for min_rank, max_rank in ((1, 1), (2, 3), (4, 6), (7, 8)):
+            entry = unreal.ItemLootEntry()
+            entry.set_editor_property("item", empty_item)
+            entry.set_editor_property("weight", 1.0)
+            band = unreal.ItemLootBand()
+            band.set_editor_property("min_rank", min_rank)
+            band.set_editor_property("max_rank", max_rank)
+            band.set_editor_property("entries", [entry])
+            bands.append(band)
+        loot_table.set_editor_property("bands", bands)
+        unreal.EditorAssetLibrary.save_loaded_asset(loot_table)
 
 
 main()

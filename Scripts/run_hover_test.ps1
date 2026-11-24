@@ -44,6 +44,9 @@
 # Computer drivers (ARaceAIController; difficulty 0 Easy, 1 Normal, 2 Hard; ch.AI.RubberBanding 0 switches rubber banding off):
 #   Full grid, 3 laps:   -Seconds 200 -LogInterval 20 -TimeoutSeconds 900 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Race.Laps 3,ch.Race.AIOpponents 7,ch.Race.AIDifficulty 1"
 #   Compare difficulties: -Seconds 80 -LogInterval 10 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Race.Laps 1,ch.Race.AIOpponents 1,ch.Race.AIDifficulty 2,ch.AI.RubberBanding 0"
+# Item boxes (placeholder item "Empty": ITEM PICKUP / ROLL_DONE / USE / REPLACE / RESPAWN lines; scripted mode 9 presses use every 8 s):
+#   -Seconds 135 -LogInterval 20 -TimeoutSeconds 900 -ExtraCmds "ch.Test.ScriptedInput 9,ch.Race.Laps 2,ch.Race.AIOpponents 7,ch.Test.PlayerGridSlot 7"
+#   "ch.Race.ItemBoxes 0" removes the boxes. Loot table check: -ExecOnly "ch.Item.PrintLoot 8"
 # Race lines (LogCosmicRace) carry the race time of the physics step and must match at every frame rate too.
 # The Unreal editor must be closed.
 
@@ -54,6 +57,8 @@ param(
     [string]$Map = "/Game/Maps/TestTrack",
     [float]$LogInterval = 0.25,
     [string]$ExtraCmds = "",
+    # Console COMMANDS (not variables) to run once the game is up, e.g. "ch.Item.PrintLoot 8". Not passed through -DPCVars.
+    [string]$ExecOnly = "",
     # Wall-clock limit for the whole run; a full-lap test needs more than the default.
     [int]$TimeoutSeconds = 240
 )
@@ -67,6 +72,7 @@ if (Test-Path $log) { Remove-Item $log }
 # p.MaxPhysicsDeltaTime: the engine default (1/30 s) would slow the game down at exactly 30 FPS.
 $cmds = "ch.Debug.VehicleLog $LogInterval,ch.Test.AutoQuitTime $Seconds,p.MaxPhysicsDeltaTime 0.05"
 if ($ExtraCmds) { $cmds = "$cmds,$ExtraCmds" }
+if ($ExecOnly) { $cmds = "$cmds,$ExecOnly" }
 
 $exe = Join-Path $EngineDir "Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
 $arguments = @(

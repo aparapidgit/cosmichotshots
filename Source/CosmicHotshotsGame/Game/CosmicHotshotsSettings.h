@@ -12,6 +12,7 @@ class UAIDifficultyData;
 class UCameraTuningData;
 class UCharacterDefinition;
 class UDrivingInputConfig;
+class UItemLootTable;
 class URaceTuningData;
 class UVehicleTuningData;
 
@@ -54,6 +55,10 @@ public:
 	/** Race rules (laps, overtake detection, gaps). Empty = class defaults of URaceTuningData. */
 	UPROPERTY(Config, EditAnywhere, Category = "Race")
 	TSoftObjectPtr<URaceTuningData> RaceTuning;
+
+	/** Which items the item boxes give. Empty = boxes give nothing. */
+	UPROPERTY(Config, EditAnywhere, Category = "Items")
+	TSoftObjectPtr<UItemLootTable> ItemLootTable;
 
 	/** Difficulty levels of computer drivers, easiest first. */
 	UPROPERTY(Config, EditAnywhere, Category = "AI")

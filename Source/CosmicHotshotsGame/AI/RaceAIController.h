@@ -64,11 +64,14 @@ private:
 
 	TSharedPtr<const FTrackSplineTable> Track;
 	TWeakObjectPtr<URaceTrackerComponent> Tracker;
+	TWeakObjectPtr<class UItemSystemComponent> ItemSystem;
 	int32 RacerId = INDEX_NONE;
 
 	/** Owned by the physics step. */
 	FRaceAIDriverState DriverState;
 	TArray<FRaceAIOtherCar> OtherCars;
+	/** Item boxes along the track, found once when the driver takes the car. */
+	TArray<FRaceAIBoxSpot> BoxSpots;
 	/** Rubber-band max-speed multiplier applied in the last step (1 = none); for the debug display. */
 	float RubberBandMultiplier = 1.f;
 };

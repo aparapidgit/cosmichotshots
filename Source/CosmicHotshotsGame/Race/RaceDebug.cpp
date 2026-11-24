@@ -32,3 +32,10 @@ namespace CosmicHotshots::RaceCVars
 		TEXT("ch.Race.AIDifficulty"), -1,
 		TEXT("Difficulty index of the computer drivers (Project Settings > Cosmic Hotshots > AI). Negative = the project default."), ECVF_Cheat);
 }
+
+namespace CosmicHotshots::RaceCVars
+{
+	TAutoConsoleVariable<int32> ItemBoxes(
+		TEXT("ch.Race.ItemBoxes"), 1,
+		TEXT("1 = item boxes are in the race, 0 = no boxes. Read when the race starts; stands in for the race setup option."), ECVF_Cheat);
+}

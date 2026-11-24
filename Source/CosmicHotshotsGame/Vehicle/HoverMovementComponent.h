@@ -72,6 +72,13 @@ public:
 	 */
 	void SetTestBot(float LateralOffset, float ThrottleScale);
 
+	/**
+	 * Use-item button presses counted so far, and the SimTime of the physics step that counted the latest.
+	 * The item system uses a ready item when the count changes (see UItemSystemComponent).
+	 */
+	int32 GetUseItemPressCount() const { return UseItemPressCount; }
+	float GetUseItemPressSimTime() const { return UseItemPressSimTime; }
+
 	/** State of the last physics step (for debug display and, later, HUD/VFX). */
 	const FHoverSimState& GetSimState() const { return SimState; }
 
@@ -149,6 +156,15 @@ private:
 	IVehicleStepInputSource* StepInputSource = nullptr;
 	bool bStepBoostWasHeld = false;
 	bool bStepAbilityWasHeld = false;
+	bool bStepUseItemWasHeld = false;
+
+	/** Set when the human's use-item button goes down; cleared by the physics step that counts it. */
+	bool bUseItemPressedLatch = false;
+	/** This step's input came from a scripted test, so its use-item button is read like a step driver's. */
+	bool bScriptedItemInput = false;
+	/** Use-item presses so far and the SimTime of the physics step that counted the latest one. */
+	int32 UseItemPressCount = 0;
+	float UseItemPressSimTime = 0.f;
 	FHoverSimState SimState;
 
 	// Impacts (see VehicleContactSubsystem.h and VehicleImpactSim.h)

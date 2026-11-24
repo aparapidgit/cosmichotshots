@@ -31,3 +31,9 @@ namespace CosmicHotshots::RaceCVars
 	/** Difficulty index of those computer drivers. Negative = the project default. */
 	extern TAutoConsoleVariable<int32> AIDifficulty;
 }
+
+namespace CosmicHotshots::RaceCVars
+{
+	/** 1 = item boxes are in the race, 0 = no boxes (stands in for the race setup option). Read when the race starts. */
+	extern TAutoConsoleVariable<int32> ItemBoxes;
+}

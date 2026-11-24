@@ -91,6 +91,12 @@ public:
 	int32 FindRacerId(const ARaceVehicle* Vehicle) const;
 	ARaceVehicle* GetRacerVehicle(int32 RacerId) const;
 
+	/** Every registered vehicle by driver id (null for a car that is gone). Safe from a physics step. */
+	void GetRegisteredVehicles(TArray<ARaceVehicle*>& OutVehicles) const;
+
+	/** Position of a vehicle's physics body as the current physics step sees it; unset when it has none. */
+	static TOptional<FVector> ReadBodyLocation(const ARaceVehicle* Vehicle);
+
 	/**
 	 * Takes the newest snapshot and the events since the last call. Game thread.
 	 * Returns false when no physics step ran since the last call (snapshot unchanged).

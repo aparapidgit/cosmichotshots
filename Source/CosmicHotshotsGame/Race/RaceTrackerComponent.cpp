@@ -31,22 +31,32 @@ namespace
 	constexpr float DebugMarkerSize = 150.f;
 	constexpr float DebugCheckpointHeight = 800.f;
 
-	/** Position of a vehicle's physics body as seen by the current physics step, unset when it has none. */
-	TOptional<FVector> ReadBodyLocation(const ARaceVehicle* Vehicle)
+}
+
+TOptional<FVector> URaceTrackerComponent::ReadBodyLocation(const ARaceVehicle* Vehicle)
+{
+	const UPrimitiveComponent* Root = Vehicle ? Cast<UPrimitiveComponent>(Vehicle->GetRootComponent()) : nullptr;
+	const FBodyInstance* BodyInstance = Root ? Root->GetBodyInstance() : nullptr;
+	if (!BodyInstance || !BodyInstance->IsValidBodyInstance())
 	{
-		const UPrimitiveComponent* Root = Vehicle ? Cast<UPrimitiveComponent>(Vehicle->GetRootComponent()) : nullptr;
-		const FBodyInstance* BodyInstance = Root ? Root->GetBodyInstance() : nullptr;
-		if (!BodyInstance || !BodyInstance->IsValidBodyInstance())
-		{
-			return {};
-		}
-		FPhysicsActorHandle Proxy = BodyInstance->GetPhysicsActor();
-		const Chaos::FRigidBodyHandle_Internal* Body = Proxy ? Proxy->GetPhysicsThreadAPI() : nullptr;
-		if (!Body)
-		{
-			return {};
-		}
-		return FVector(Body->X());
+		return {};
+	}
+	FPhysicsActorHandle Proxy = BodyInstance->GetPhysicsActor();
+	const Chaos::FRigidBodyHandle_Internal* Body = Proxy ? Proxy->GetPhysicsThreadAPI() : nullptr;
+	if (!Body)
+	{
+		return {};
+	}
+	return FVector(Body->X());
+}
+
+void URaceTrackerComponent::GetRegisteredVehicles(TArray<ARaceVehicle*>& OutVehicles) const
+{
+	FScopeLock ScopeLock(&Lock);
+	OutVehicles.Reset(Vehicles.Num());
+	for (const TWeakObjectPtr<ARaceVehicle>& Vehicle : Vehicles)
+	{
+		OutVehicles.Add(Vehicle.Get());
 	}
 }
 

@@ -5,11 +5,11 @@
 namespace
 {
 	/** The car drops onto the track and settles before the driver touches anything (s). */
-	constexpr double SettleTime = 1.0;
+	constexpr double DriverSettleTime = 1.0;
 
 	// Track projection (same idea as the race tracker): search near the last position, whole lap when lost.
-	constexpr float ProjectionWindow = 3000.f;
-	constexpr float ReacquireDistance = 2500.f;
+	constexpr float LineProjectionWindow = 3000.f;
+	constexpr float LineReacquireDistance = 2500.f;
 
 	// Speed planning: look this far ahead for corners, in steps (cm).
 	constexpr float BrakeLookaheadMargin = 2000.f;
@@ -49,9 +49,16 @@ namespace
 	constexpr float TailgateDistance = 900.f;
 
 	// Stuck: below this speed (cm/s) for the delay (s), reverse for the duration (s).
-	constexpr float StuckSpeed = 300.f;
-	constexpr float StuckDelay = 1.f;
-	constexpr float ReverseDuration = 1.2f;
+	constexpr float DriverStuckSpeed = 300.f;
+	constexpr float DriverStuckDelay = 1.f;
+	constexpr float DriverReverseDuration = 1.2f;
+
+	// Item boxes: look this far ahead (cm, plus speed x time) and move at most this far sideways (cm) for one.
+	constexpr float BoxSeekBase = 2000.f;
+	constexpr float BoxSeekTime = 2.5f;
+	constexpr float BoxMaxSidestep = 1100.f;
+	/** A car ahead within this sideways distance (cm) of a box is expected to collect it. */
+	constexpr float BoxClaimWidth = 350.f;
 
 	// Drift and boost.
 	/** The corner the drift button reacts to lies speed x this time ahead (s). */
@@ -76,11 +83,11 @@ FVehicleInputState FRaceAIDriverSim::Step(const FTrackSplineTable& Track, const 
 
 	const FTrackProjection Projection = State.TrackDistance < 0.f
 		? Track.Project(Input.Location)
-		: Track.ProjectNear(Input.Location, State.TrackDistance, ProjectionWindow, ReacquireDistance);
+		: Track.ProjectNear(Input.Location, State.TrackDistance, LineProjectionWindow, LineReacquireDistance);
 	State.TrackDistance = Projection.Distance;
 	State.LateralOffset = Projection.LateralOffset;
 
-	if (Input.ElapsedSimTime < SettleTime)
+	if (Input.ElapsedSimTime < DriverSettleTime)
 	{
 		State.Mode = ERaceAIDriverMode::Waiting;
 		State.TargetLateral = Projection.LateralOffset;
@@ -109,6 +116,35 @@ FVehicleInputState FRaceAIDriverSim::Step(const FTrackSplineTable& Track, const 
 	// --- Line: towards the inside of the corner ahead (right-hand turn = positive curvature = right side).
 	const float LineCurvature = Track.GetCurvatureAtDistance(Distance + LineLookaheadBase + Speed * LineLookaheadTime);
 	float DesiredLateral = FMath::Clamp(LineCurvature / Params.ApexFullCurvature, -1.f, 1.f) * Params.ApexOffset + Params.PersonalOffset;
+
+	// --- Item boxes: with a row of boxes coming up, line up for the box nearest to this line.
+	const float BoxRange = BoxSeekBase + Speed * BoxSeekTime;
+	float BestBoxSideways = BoxMaxSidestep;
+	float BoxLateral = DesiredLateral;
+	for (const FRaceAIBoxSpot& Box : Input.Boxes)
+	{
+		const float Ahead = Track.WrappedDelta(Distance, Box.TrackDistance);
+		const float Sideways = FMath::Abs(Box.LateralOffset - DesiredLateral);
+		if (!Box.bActive || Ahead <= 0.f || Ahead >= BoxRange || Sideways >= BestBoxSideways)
+		{
+			continue;
+		}
+
+		// A car between here and the box that is lined up with it will take it first: pick another box of the row.
+		bool bClaimed = false;
+		for (const FRaceAIOtherCar& Other : Input.Others)
+		{
+			const float OtherAhead = Track.WrappedDelta(Distance, Other.TrackDistance);
+			bClaimed |= OtherAhead > 0.f && OtherAhead < Ahead && FMath::Abs(Other.LateralOffset - Box.LateralOffset) < BoxClaimWidth;
+		}
+		if (!bClaimed)
+		{
+			BestBoxSideways = Sideways;
+			BoxLateral = Box.LateralOffset;
+		}
+	}
+	DesiredLateral = BoxLateral;
+
 	State.Mode = Speed > TargetSpeed ? ERaceAIDriverMode::Braking : ERaceAIDriverMode::Driving;
 
 	// --- Other cars: the nearest slower car ahead that sits on this line.
@@ -164,11 +200,11 @@ FVehicleInputState FRaceAIDriverSim::Step(const FTrackSplineTable& Track, const 
 		Out.Steer = State.Steer;
 		return Out;
 	}
-	State.StuckTime = Speed < StuckSpeed ? State.StuckTime + Input.DeltaTime : 0.f;
-	if (State.StuckTime > StuckDelay)
+	State.StuckTime = Speed < DriverStuckSpeed ? State.StuckTime + Input.DeltaTime : 0.f;
+	if (State.StuckTime > DriverStuckDelay)
 	{
 		State.StuckTime = 0.f;
-		State.ReverseTimeRemaining = ReverseDuration;
+		State.ReverseTimeRemaining = DriverReverseDuration;
 	}
 
 	// --- Steering, moved at a limited rate.

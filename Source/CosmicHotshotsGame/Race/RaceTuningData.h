@@ -56,4 +56,20 @@ public:
 	/** Time gaps where no passing time exists yet: distance divided by at least this speed (cm/s). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Gaps", meta = (ClampMin = "1.0"))
 	float MinGapSpeed = 1000.f;
+
+	/** Seconds before a collected item box comes back. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Items", meta = (ClampMin = "0.1"))
+	float ItemBoxRespawnTime = 5.f;
+
+	/** Seconds the item roulette runs before the item can be used. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Items", meta = (ClampMin = "0.0"))
+	float ItemRollDuration = 1.5f;
+
+	/** A car collects a box when its centre comes this close to the box (cm). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Items", meta = (ClampMin = "10.0"))
+	float ItemPickupRadius = 250.f;
+
+	/** Seconds a computer driver keeps a ready item before using it. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Items", meta = (ClampMin = "0.0"))
+	float AIItemUseDelay = 1.f;
 };

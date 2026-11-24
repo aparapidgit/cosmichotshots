@@ -51,6 +51,15 @@ struct FRaceAIOtherCar
 	float Speed = 0.f;
 };
 
+/** Where an item box sits on the track. */
+struct FRaceAIBoxSpot
+{
+	float TrackDistance = 0.f;
+	float LateralOffset = 0.f;
+	/** Can be collected right now. */
+	bool bActive = false;
+};
+
 /** What the driver sees in one step. */
 struct FRaceAIDriverInput
 {
@@ -63,6 +72,8 @@ struct FRaceAIDriverInput
 	/** Boost meter 0..1. */
 	float BoostCharge = 0.f;
 	TConstArrayView<FRaceAIOtherCar> Others;
+	/** Item boxes on the track; the driver lines up for the nearest one of a row ahead. */
+	TConstArrayView<FRaceAIBoxSpot> Boxes;
 };
 
 enum class ERaceAIDriverMode : uint8

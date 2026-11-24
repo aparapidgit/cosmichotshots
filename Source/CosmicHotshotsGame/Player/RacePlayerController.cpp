@@ -1,5 +1,9 @@
 #include "Player/RacePlayerController.h"
 
+#include "Item/ItemLootTable.h"
+#include "Item/ItemSystemComponent.h"
+#include "Race/RaceGameState.h"
+
 #include "CosmicHotshotsGame.h"
 #include "Camera/RaceCameraComponent.h"
 #include "Character/CharacterDefinition.h"
@@ -61,6 +65,21 @@ void ARacePlayerController::BeginPlay()
 			InputSubsystem->AddMappingContext(DrivingInput->MappingContext, DrivingInput->MappingPriority);
 		}
 	}
+}
+
+void ARacePlayerController::GiveItem(const FString& ItemId)
+{
+	ARaceVehicle* Vehicle = Cast<ARaceVehicle>(GetPawn());
+	const ARaceGameState* RaceState = GetWorld() ? GetWorld()->GetGameState<ARaceGameState>() : nullptr;
+	UItemSystemComponent* Items = RaceState ? RaceState->GetItemSystem() : nullptr;
+	const UItemLootTable* Table = Items ? Items->GetLootTable() : nullptr;
+	const UItemDefinition* Item = Table ? Table->FindItem(FName(*ItemId)) : nullptr;
+	if (!Vehicle || !Item)
+	{
+		UE_LOG(LogCosmicVehicle, Warning, TEXT("GiveItem: no vehicle, or the loot table has no item with id '%s'."), *ItemId);
+		return;
+	}
+	Items->GiveItem(Vehicle, Item);
 }
 
 void ARacePlayerController::SetCharacter(const FString& IndexOrName)

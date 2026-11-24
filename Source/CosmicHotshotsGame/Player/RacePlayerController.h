@@ -28,6 +28,13 @@ public:
 	UFUNCTION(Exec)
 	void SetCharacter(const FString& IndexOrName);
 
+	/**
+	 * Dev console command: "GiveItem Empty". Puts the item with that id (from the loot table) into this
+	 * player's item slot, ready to use.
+	 */
+	UFUNCTION(Exec)
+	void GiveItem(const FString& ItemId);
+
 protected:
 	virtual void SetupInputComponent() override;
 	virtual void OnPossess(APawn* InPawn) override;

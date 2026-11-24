@@ -39,6 +39,9 @@ private:
 	/** Grid slot of a human player (join order; the first player's slot can be overridden with ch.Test.PlayerGridSlot). */
 	int32 GetPlayerGridSlot(int32 PlayerIndex, int32 NumSlots) const;
 
+	/** Hides the test track's placeholder cubes for item boxes and, when item boxes are on, puts real AItemBox actors there. */
+	void ReplaceItemBoxPlaceholders();
+
 	/** Grid slots (at most MaxGridSize) the human players did not take, front to back. */
 	TArray<int32> FindFreeGridSlots();
 
