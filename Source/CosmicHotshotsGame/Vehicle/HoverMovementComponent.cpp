@@ -1,6 +1,8 @@
 #include "Vehicle/HoverMovementComponent.h"
 
 #include "CosmicHotshotsGame.h"
+#include "Chaos/Framework/PhysicsProxyBase.h"
+#include "Chaos/ParticleHandle.h"
 #include "Components/PrimitiveComponent.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/Engine.h"
@@ -201,25 +203,103 @@ void UHoverMovementComponent::SetInput(const FVehicleInputState& InInput)
 	Input = InInput;
 }
 
-void UHoverMovementComponent::ApplyControlLoss(float Duration)
+void UHoverMovementComponent::TakePendingImpacts(TArray<FVehicleImpactInfo>& OutImpacts)
 {
-	// Game thread; the physics step also runs on the game thread (see header), so this is safe.
-	SimState.ControlLossTimeRemaining = FMath::Max(SimState.ControlLossTimeRemaining, Duration);
+	OutImpacts = MoveTemp(PendingImpacts);
+	PendingImpacts.Reset();
 }
 
-void UHoverMovementComponent::BlockClosePassCharging()
+void UHoverMovementComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	// Game thread; see ApplyControlLoss.
-	if (Tuning)
+	if (UVehicleContactSubsystem* Contacts = ContactSubsystem.Get(); Contacts && RegisteredParticle)
 	{
-		SimState.DriftBoost.ClosePassLockoutRemaining = FMath::Max(SimState.DriftBoost.ClosePassLockoutRemaining, Tuning->ClosePassHitLockout);
+		Contacts->UnregisterVehicle(RegisteredParticle);
 	}
+	RegisteredParticle = nullptr;
+
+	Super::EndPlay(EndPlayReason);
 }
 
-void UHoverMovementComponent::RemoveBoostCharge(float Amount)
+FVehicleImpactParams UHoverMovementComponent::BuildImpactParams() const
 {
-	// Game thread; see ApplyControlLoss.
-	SimState.DriftBoost.BoostCharge = FMath::Max(SimState.DriftBoost.BoostCharge - FMath::Max(Amount, 0.f), 0.f);
+	FVehicleImpactParams Params;
+	Params.MinImpactSpeed = Tuning->MinImpactSpeed;
+	Params.ImpactCooldown = Tuning->ImpactCooldown;
+	Params.VehicleBounce = Tuning->VehicleBounce;
+	Params.MaxImpactSpeedChange = Tuning->MaxImpactSpeedChange;
+	Params.WobbleThreshold = Tuning->WobbleThreshold;
+	Params.WobbleDuration = Tuning->WobbleDuration;
+	Params.SpinOutThreshold = Tuning->SpinOutThreshold;
+	Params.SpinOutDuration = Tuning->SpinOutDuration;
+	Params.SpinOutYawRate = Tuning->SpinOutYawRate;
+	Params.WallBounce = Tuning->WallBounce;
+	Params.WallSpeedLoss = Tuning->WallSpeedLoss;
+	Params.WallHardHitSpeed = Tuning->WallHardHitSpeed;
+	Params.WallBoostLossMin = Tuning->WallBoostLossMin;
+	Params.WallBoostLossMax = Tuning->WallBoostLossMax;
+	Params.ClosePassHitLockout = Tuning->ClosePassHitLockout;
+	Params.Stability = Stats ? Stats->GetStability() : 1.f;
+	return Params;
+}
+
+void UHoverMovementComponent::ApplyImpacts(Chaos::FRigidBodyHandle_Internal& Body, Chaos::FSingleParticlePhysicsProxy& Proxy)
+{
+	UVehicleContactSubsystem* Contacts = GetWorld()->GetSubsystem<UVehicleContactSubsystem>();
+	const Chaos::FGeometryParticleHandle* Particle = Proxy.GetHandle_LowLevel();
+	if (!Contacts || !Contacts->IsActive() || !Particle)
+	{
+		return;
+	}
+
+	// The body's particle exists only once physics has created it, so register here, in the physics step.
+	if (Particle != RegisteredParticle)
+	{
+		if (RegisteredParticle)
+		{
+			Contacts->UnregisterVehicle(RegisteredParticle);
+		}
+		Contacts->RegisterVehicle(Particle, &Proxy, Cast<ARaceVehicle>(GetOwner()));
+		RegisteredParticle = Particle;
+		ContactSubsystem = Contacts;
+	}
+
+	Contacts->TakeContacts(Particle, RawContacts);
+	if (RawContacts.IsEmpty())
+	{
+		// Nothing touched; cooldowns still have to run out, so let the sim see an empty list.
+		ResolvedContacts.Reset();
+	}
+	else
+	{
+		// Who was hit. The physics thread waits while this step runs, so reading the other body's owner is safe.
+		ResolvedContacts.Reset(RawContacts.Num());
+		for (const FVehicleRawContact& Raw : RawContacts)
+		{
+			FVehicleContact& Contact = ResolvedContacts.AddDefaulted_GetRef();
+			Contact.Raw = Raw;
+			if (const ARaceVehicle* OtherVehicle = Contacts->FindVehicle(Raw.OtherParticle))
+			{				Contact.bOtherIsVehicle = true;
+				Contact.OtherActor = const_cast<ARaceVehicle*>(OtherVehicle);
+				// Mass straight from the physics particle: the game-thread body API is off limits inside the step.
+				Contact.OtherMass = Raw.OtherMass;
+				Contact.OtherRamPower = OtherVehicle->GetStats()->GetRamPower();
+			}
+			else if (Raw.OtherProxy)
+			{
+				UObject* Owner = Raw.OtherProxy->GetOwner();
+				if (const UActorComponent* OwnerComponent = Cast<UActorComponent>(Owner))
+				{
+					Contact.OtherActor = OwnerComponent->GetOwner();
+				}
+				else
+				{
+					Contact.OtherActor = Cast<AActor>(Owner);
+				}
+			}
+		}
+	}
+
+	FVehicleImpactSim::Apply(Body, BuildImpactParams(), ResolvedContacts, ElapsedSimTime, ImpactState, SimState, PendingImpacts);
 }
 
 FHoverSimParams UHoverMovementComponent::BuildSimParams() const
@@ -402,6 +482,9 @@ void UHoverMovementComponent::AsyncPhysicsTickComponent(float DeltaTime, float S
 		bScriptedAbilityWasHeld = StepInput.bUseAbility;
 	}
 #endif
+
+	// Hits from the previous step first, so the hover step below already drives the bounced car.
+	ApplyImpacts(*Body, *Proxy);
 
 	const int32 AbilityUsesBefore = SimState.DriftBoost.AbilityUseCount;
 

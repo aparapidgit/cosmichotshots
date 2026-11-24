@@ -12,8 +12,14 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Vehicle/HoverSim.h"
+#include "Vehicle/VehicleImpactSim.h"
 #include "Vehicle/VehicleInputState.h"
 #include "HoverMovementComponent.generated.h"
+
+namespace Chaos
+{
+	class FSingleParticlePhysicsProxy;
+}
 
 class UPrimitiveComponent;
 class UVehicleStatsComponent;
@@ -38,25 +44,28 @@ public:
 	/** Latest driver intent. Called on the game thread by the owning vehicle. */
 	void SetInput(const FVehicleInputState& InInput);
 
-	/** Weakens grip and steering for a short time (wobble or spin-out after a strong hit). Never shortens a running one. */
-	void ApplyControlLoss(float Duration);
-
-	/** Takes boost fluid out of the meter (a share of the full meter, 0..1). The meter never goes below zero. */
-	void RemoveBoostCharge(float Amount);
-
-	/** Touching or hitting a wall or object: no close-pass charging for a short time (ClosePassHitLockout). */
-	void BlockClosePassCharging();
+	/**
+	 * Moves the impacts the physics steps applied since the last call into OutImpacts.
+	 * The impact component turns them into feedback (camera shake, rumble, VFX, audio).
+	 */
+	void TakePendingImpacts(TArray<FVehicleImpactInfo>& OutImpacts);
 
 	/** State of the last physics step (for debug display and, later, HUD/VFX). */
 	const FHoverSimState& GetSimState() const { return SimState; }
 
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void AsyncPhysicsTickComponent(float DeltaTime, float SimTime) override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
 	/** Data asset values with console overrides applied. */
 	FHoverSimParams BuildSimParams() const;
+
+	FVehicleImpactParams BuildImpactParams() const;
+
+	/** Applies the hits the physics engine reported in the previous step. Called from the physics step. */
+	void ApplyImpacts(Chaos::FRigidBodyHandle_Internal& Body, Chaos::FSingleParticlePhysicsProxy& Proxy);
 
 	/** Advances the simulation clock and writes the periodic state line to the log. Called from the physics step. */
 	void LogStep(float DeltaTime);
@@ -76,6 +85,17 @@ private:
 
 	FVehicleInputState Input;
 	FHoverSimState SimState;
+
+	// Impacts (see VehicleContactSubsystem.h and VehicleImpactSim.h)
+	FVehicleImpactState ImpactState;
+	/** Impacts applied by physics steps, waiting for the impact component's game tick. */
+	TArray<FVehicleImpactInfo> PendingImpacts;
+	/** Reused every step so reading contacts does not allocate. */
+	TArray<FVehicleRawContact> RawContacts;
+	TArray<FVehicleContact> ResolvedContacts;
+	/** This body's physics particle as registered with the contact subsystem. */
+	const Chaos::FGeometryParticleHandle* RegisteredParticle = nullptr;
+	TWeakObjectPtr<UVehicleContactSubsystem> ContactSubsystem;
 
 	/**
 	 * Set when the boost button goes down, cleared by the physics step that uses it.

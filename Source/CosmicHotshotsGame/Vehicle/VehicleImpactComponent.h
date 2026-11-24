@@ -1,12 +1,11 @@
-// Vehicle impacts: arcade response to hitting another car or a wall.
+// Vehicle impacts: feedback side.
 //
-// The physics engine only separates the bodies (no bounce, no friction). This
-// component adds the arcade part on top: knock-back scaled by the attacker's
-// RamPower, the defender's Stability and both masses, a short wobble or
-// spin-out for strong hits, and wall bounce with partial speed loss.
-// Each car handles only what happens to ITSELF, so a collision needs no
-// shared bookkeeping. It broadcasts OnImpact for camera shake, rumble, VFX
-// and audio; it contains no presentation code.
+// The arcade response to hitting another car or a wall (knock-back by RamPower,
+// Stability and mass, wobble or spin-out, wall bounce with partial speed loss,
+// boost loss) is applied inside the fixed physics step by FVehicleImpactSim, so it
+// is the same at every frame rate. This component only collects what those steps
+// did and broadcasts OnImpact once per impact for camera shake, rumble, VFX and
+// audio. It contains no physics and no presentation code.
 
 #pragma once
 
@@ -67,6 +66,10 @@ struct FVehicleImpactInfo
 
 	UPROPERTY(BlueprintReadOnly, Category = "Impact")
 	EImpactReaction Reaction = EImpactReaction::None;
+
+	/** Simulation time of the physics step that applied the response (seconds since the vehicle started). */
+	UPROPERTY(BlueprintReadOnly, Category = "Impact")
+	float SimTime = 0.f;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVehicleImpact, const FVehicleImpactInfo&, Impact);
@@ -79,42 +82,22 @@ class COSMICHOTSHOTSGAME_API UVehicleImpactComponent : public UActorComponent
 public:
 	UVehicleImpactComponent();
 
-	void Initialize(UPrimitiveComponent* InBody, UHoverMovementComponent* InMovement, const UVehicleStatsComponent* InStats);
+	/** The movement component whose physics steps apply the impacts. */
+	void Initialize(UHoverMovementComponent* InMovement);
 
-	/** Fired for every impact that passed the minimum strength, after the response was applied. */
+	/** Fired once per impact that passed the minimum strength, after the physics step applied the response. */
 	UPROPERTY(BlueprintAssignable, Category = "Impact")
 	FOnVehicleImpact OnImpact;
 
-	virtual void BeginPlay() override;
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
-	UFUNCTION()
-	void HandleBodyHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComponent, FVector NormalImpulse, const FHitResult& Hit);
-
-	void HandleVehicleHit(class ARaceVehicle& OtherVehicle, const FVector& Normal, float ClosingSpeed, const FHitResult& Hit);
-	void HandleWallHit(AActor* OtherActor, const FVector& Normal, float ClosingSpeed, const FHitResult& Hit);
-
-	/** Applies wobble or spin-out for a received speed change and fills in the feedback part of the info. */
-	void ApplyReaction(FVehicleImpactInfo& Info, bool bAllowSpinOut);
-
-	bool IsOnCooldown(const AActor* OtherActor) const;
-	void StartCooldown(const AActor* OtherActor);
-
+	/** Log, debug draw and broadcast of one impact. */
 	void FinishImpact(const FVehicleImpactInfo& Info);
-
-	UPROPERTY(Transient)
-	TObjectPtr<UPrimitiveComponent> Body;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UHoverMovementComponent> Movement;
 
-	UPROPERTY(Transient)
-	TObjectPtr<const UVehicleTuningData> Tuning;
-
-	/** Final RamPower, Stability and mass of this vehicle. */
-	UPROPERTY(Transient)
-	TObjectPtr<const UVehicleStatsComponent> Stats;
-
-	/** World time until which hits with an actor are ignored. */
-	TMap<TWeakObjectPtr<const AActor>, double> CooldownEndTimes;
+	/** Reused every frame. */
+	TArray<FVehicleImpactInfo> Impacts;
 };

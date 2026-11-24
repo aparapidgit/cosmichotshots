@@ -35,7 +35,8 @@ ARaceVehicle::ARaceVehicle()
 	Body->SetCollisionProfileName(VehicleCollisionProfile);
 	Body->SetSimulatePhysics(true);
 	Body->SetEnableGravity(false); // gravity is applied by the hover simulation
-	Body->SetNotifyRigidBodyCollision(true);
+	// No hit events: impacts are read from the physics step itself (UVehicleContactSubsystem).
+	Body->SetNotifyRigidBodyCollision(false);
 
 	VisualMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("VisualMesh"));
 	VisualMesh->SetupAttachment(Body);
@@ -124,7 +125,7 @@ void ARaceVehicle::ApplyCharacter()
 
 	HoverMovement->SetTuning(ActiveTuning);
 	HoverMovement->SetStats(Stats);
-	Impact->Initialize(Body, HoverMovement, Stats);
+	Impact->Initialize(HoverMovement);
 }
 
 void ARaceVehicle::ApplyBodyShape(const UVehicleTuningData& ActiveTuning)
