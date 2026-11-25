@@ -34,6 +34,9 @@ public:
 	/** Most vehicles on the grid, humans and computer drivers together. Menus, race setup, grid and AI all use this one value. */
 	static constexpr int32 MaxGridSize = 8;
 
+	/** Most laps the race setup menu offers. */
+	static constexpr int32 MaxSetupLaps = 9;
+
 	/** Difficulty by index, clamped to the list; the class defaults of UAIDifficultyData when the list is empty. */
 	const UAIDifficultyData* GetAIDifficulty(int32 Index) const;
 

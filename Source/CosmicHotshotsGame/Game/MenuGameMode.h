@@ -45,6 +45,7 @@ private:
 	/** Seconds since the first tick, for the test helpers. */
 	float MenuTime = 0.f;
 	bool bMenuScreenshotTaken = false;
+	bool bMenuKeysSent = false;
 
 	UPROPERTY(Transient)
 	TObjectPtr<URaceScreenWidget> MenuWidget;

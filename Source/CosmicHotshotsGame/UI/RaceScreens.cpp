@@ -1,5 +1,6 @@
 #include "UI/RaceScreens.h"
 
+#include "UI/MenuScreens.h"
 #include "Blueprint/WidgetTree.h"
 #include "Character/CharacterDefinition.h"
 #include "Components/Border.h"
@@ -45,7 +46,7 @@ namespace
 
 	// Buttons of the results screen.
 	constexpr int32 RestartButton = 0;
-	constexpr int32 ChangeCharacterButton = 1;
+	constexpr int32 ChangeSetupButton = 1;
 	constexpr int32 ResultsMainMenuButton = 2;
 
 	UGameFlowSubsystem* GetFlow(const UObject* WorldContext)
@@ -147,13 +148,82 @@ URaceMenuButton* URaceScreenWidget::AddButton(const FText& Text, const FLinearCo
 	Button->Setup(Buttons.Num());
 	Button->SetBackgroundColor(ButtonColour);
 	Button->AddChild(AddText(Text, ButtonFontSize, TextColour));
-	Button->OnMenuClicked.AddUObject(this, &URaceScreenWidget::HandleButton);
+	Button->OnMenuClicked.AddUObject(this, &URaceScreenWidget::HandleButtonClicked);
 
 	UVerticalBoxSlot* BoxSlot = Column->AddChildToVerticalBox(Button);
 	BoxSlot->SetHorizontalAlignment(HAlign_Fill);
 	BoxSlot->SetPadding(FMargin(0.f, ScreenButtonPadding));
 	Buttons.Add(Button);
 	return Button;
+}
+
+int32 URaceScreenWidget::AddOptionRow(const FText& Label, const TArray<FText>& Values, int32 InitialValue)
+{
+	URaceMenuButton* Button = AddButton(FText::GetEmpty());
+
+	FRaceMenuOptionRow& Row = OptionRows.AddDefaulted_GetRef();
+	Row.ButtonIndex = Buttons.Num() - 1;
+	Row.Label = Label;
+	Row.Values = Values;
+	Row.Value = FMath::Clamp(InitialValue, 0, FMath::Max(Values.Num() - 1, 0));
+	Row.Text = Cast<UTextBlock>(Button->GetChildAt(0));
+	RefreshOptionRow(Row);
+	return Row.ButtonIndex;
+}
+
+int32 URaceScreenWidget::GetOptionValue(int32 ButtonIndex) const
+{
+	for (const FRaceMenuOptionRow& Row : OptionRows)
+	{
+		if (Row.ButtonIndex == ButtonIndex)
+		{
+			return Row.Value;
+		}
+	}
+	return 0;
+}
+
+FRaceMenuOptionRow* URaceScreenWidget::FindOptionRow(int32 ButtonIndex)
+{
+	return OptionRows.FindByPredicate([ButtonIndex](const FRaceMenuOptionRow& Row) { return Row.ButtonIndex == ButtonIndex; });
+}
+
+void URaceScreenWidget::RefreshOptionRow(FRaceMenuOptionRow& Row)
+{
+	if (!Row.Text || !Row.Values.IsValidIndex(Row.Value))
+	{
+		return;
+	}
+	// One value = nothing to choose: no arrows.
+	Row.Text->SetText(Row.Values.Num() > 1
+		? FText::Format(LOCTEXT("OptionRow", "{0}:   <  {1}  >"), Row.Label, Row.Values[Row.Value])
+		: FText::Format(LOCTEXT("OptionRowFixed", "{0}:   {1}"), Row.Label, Row.Values[Row.Value]));
+}
+
+void URaceScreenWidget::StepOptionRow(FRaceMenuOptionRow& Row, int32 Step, bool bWrap)
+{
+	const int32 NumValues = Row.Values.Num();
+	if (NumValues <= 1)
+	{
+		return;
+	}
+	const int32 NewValue = bWrap ? ((Row.Value + Step) % NumValues + NumValues) % NumValues : FMath::Clamp(Row.Value + Step, 0, NumValues - 1);
+	if (NewValue != Row.Value)
+	{
+		Row.Value = NewValue;
+		RefreshOptionRow(Row);
+		HandleOptionChanged(Row.ButtonIndex, Row.Value);
+	}
+}
+
+void URaceScreenWidget::HandleButtonClicked(int32 ButtonIndex)
+{
+	if (FRaceMenuOptionRow* Row = FindOptionRow(ButtonIndex))
+	{
+		StepOptionRow(*Row, 1, /*bWrap=*/true);
+		return;
+	}
+	HandleButton(ButtonIndex);
 }
 
 void URaceScreenWidget::ShowScreen()
@@ -216,6 +286,27 @@ FReply URaceScreenWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FKe
 		return FReply::Handled();
 	}
 	return Super::NativeOnKeyDown(InGeometry, InKeyEvent);
+}
+
+FReply URaceScreenWidget::NativeOnPreviewKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
+{
+	// Left / right on an option row change its value. This has to happen in the preview pass: the focused
+	// button answers direction keys itself (focus navigation), so they never reach NativeOnKeyDown.
+	const FKey Key = InKeyEvent.GetKey();
+	const bool bLeft = Key == EKeys::Left || Key == EKeys::Gamepad_DPad_Left || Key == EKeys::Gamepad_LeftStick_Left;
+	const bool bRight = Key == EKeys::Right || Key == EKeys::Gamepad_DPad_Right || Key == EKeys::Gamepad_LeftStick_Right;
+	if (bLeft || bRight)
+	{
+		for (FRaceMenuOptionRow& Row : OptionRows)
+		{
+			if (Buttons.IsValidIndex(Row.ButtonIndex) && Buttons[Row.ButtonIndex]->HasKeyboardFocus())
+			{
+				StepOptionRow(Row, bRight ? 1 : -1, /*bWrap=*/false);
+				return FReply::Handled();
+			}
+		}
+	}
+	return Super::NativeOnPreviewKeyDown(InGeometry, InKeyEvent);
 }
 
 void URaceScreenWidget::HideScreen()
@@ -284,11 +375,22 @@ void UCharacterSelectWidget::HandleFocusChanged(int32 ButtonIndex)
 
 void UCharacterSelectWidget::HandleButton(int32 ButtonIndex)
 {
-	if (Characters.IsValidIndex(ButtonIndex))
+	if (!Characters.IsValidIndex(ButtonIndex))
 	{
-		HideScreen();
-		CosmicHotshots::RaceUI::StartRaceWithCharacter(this, Characters[ButtonIndex]);
+		return;
 	}
+
+	UGameFlowSubsystem* Flow = UGameFlowSubsystem::Get(this);
+	if (bPartOfRaceSetup && Flow)
+	{
+		// One human for now; split-screen will ask every player in turn.
+		Flow->EditSingleRaceSetup().HumanCharacters = { Characters[ButtonIndex] };
+		OpenChildScreen(CreateScreen<UTrackSelectWidget>());
+		return;
+	}
+
+	HideScreen();
+	CosmicHotshots::RaceUI::StartRaceWithCharacter(this, Characters[ButtonIndex]);
 }
 
 // --- URaceResultsWidget
@@ -313,7 +415,7 @@ void URaceResultsWidget::BuildScreen()
 	}
 
 	AddButton(LOCTEXT("Restart", "Restart"));
-	AddButton(LOCTEXT("ChangeCharacter", "Change character"));
+	AddButton(LOCTEXT("ChangeSetup", "Change setup"));
 	AddButton(LOCTEXT("ResultsMainMenu", "Main menu"));
 }
 
@@ -331,11 +433,13 @@ void URaceResultsWidget::HandleButton(int32 ButtonIndex)
 		Flow->OpenMainMenu(this);
 		return;
 	}
-	if (ButtonIndex == ChangeCharacterButton)
+	if (ButtonIndex == ChangeSetupButton)
 	{
-		// Without a race setup the track opens on the character select again.
-		Flow->ClearRaceConfig();
+		// Back to the main menu map, straight into the race setup with the last choices.
+		Flow->OpenMainMenu(this, /*bOpenRaceSetup=*/true);
+		return;
 	}
+	// Restart: the same setup again (same track, same rivals).
 	Flow->StartRace(this);
 }
 

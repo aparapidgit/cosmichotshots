@@ -54,4 +54,13 @@ namespace CosmicHotshots::RaceCVars
 
 	/** Test helper: what the main menu map does by itself, without a screen ("SingleRace"). Empty = nothing. */
 	extern TAutoConsoleVariable<FString> AutoMenu;
+
+	/** Test helper: the Single Race setup ch.Test.AutoMenu uses, as "rivals:laps:difficulty:items". Empty = default race. */
+	extern TAutoConsoleVariable<FString> AutoSetup;
+
+	/** Test helper: keys pressed once on the main menu map, in order, as "Left:Down:Enter" (key names of FKey). */
+	extern TAutoConsoleVariable<FString> MenuKeys;
+
+	/** Seed of the draw that gives the rivals of a Single Race their characters. Negative = a new draw every time. */
+	extern TAutoConsoleVariable<int32> AICharacterSeed;
 }

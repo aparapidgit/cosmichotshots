@@ -38,6 +38,23 @@ private:
 	int32 Index = 0;
 };
 
+/** A button that holds one choice out of a list ("Rivals:  < 5 >"). Left / right change it, a click steps forward. */
+USTRUCT()
+struct FRaceMenuOptionRow
+{
+	GENERATED_BODY()
+
+	/** Index of the row's button on its screen. */
+	int32 ButtonIndex = INDEX_NONE;
+
+	FText Label;
+	TArray<FText> Values;
+	int32 Value = 0;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> Text;
+};
+
 /** Base of the menu screens: a centred column of texts and buttons with gamepad focus. */
 UCLASS(Abstract)
 class COSMICHOTSHOTSGAME_API URaceScreenWidget : public UUserWidget
@@ -64,6 +81,7 @@ protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
+	virtual FReply NativeOnPreviewKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
 
 	/** Creates a screen for the same player (to hand to OpenChildScreen). */
 	template <typename ScreenType>
@@ -88,8 +106,33 @@ protected:
 	UTextBlock* AddLine(const FText& Text, const FLinearColor& Colour = FLinearColor::White);
 	URaceMenuButton* AddButton(const FText& Text, const FLinearColor& TextColour = FLinearColor::White);
 
+	/**
+	 * Adds an option row: a button showing "Label:  < value >". Left / right pick the previous / next value,
+	 * a click steps forward and wraps round. A row with one value is shown without arrows (fixed).
+	 * Returns the row's button index.
+	 */
+	int32 AddOptionRow(const FText& Label, const TArray<FText>& Values, int32 InitialValue);
+
+	/** Chosen value of the option row with this button index (0 when it is not an option row). */
+	int32 GetOptionValue(int32 ButtonIndex) const;
+
+	/** An option row changed its value. */
+	virtual void HandleOptionChanged(int32 ButtonIndex, int32 Value) {}
+
 private:
 	UTextBlock* AddText(const FText& Text, int32 FontSize, const FLinearColor& Colour);
+
+	/** Click on any button: option rows step their value, the others go to HandleButton. */
+	void HandleButtonClicked(int32 ButtonIndex);
+
+	FRaceMenuOptionRow* FindOptionRow(int32 ButtonIndex);
+
+	/** Moves the row's value by Step; bWrap = past the last value comes the first. */
+	void StepOptionRow(FRaceMenuOptionRow& Row, int32 Step, bool bWrap);
+	void RefreshOptionRow(FRaceMenuOptionRow& Row);
+
+	UPROPERTY(Transient)
+	TArray<FRaceMenuOptionRow> OptionRows;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UVerticalBox> Column;
@@ -107,11 +150,18 @@ private:
 	int32 LastFocusedButton = INDEX_NONE;
 };
 
-/** Character select: one button per race character; picking one sets up the race and starts it. */
+/**
+ * Character select: one button per race character. As part of the Single Race setup the pick goes into the
+ * setup and the track select follows; on its own (a track opened without a setup, dev) it starts a default race.
+ */
 UCLASS()
 class COSMICHOTSHOTSGAME_API UCharacterSelectWidget : public URaceScreenWidget
 {
 	GENERATED_BODY()
+
+public:
+	/** Call before the screen is shown: the pick continues the Single Race setup instead of starting a race. */
+	void SetPartOfRaceSetup(bool bInPartOfRaceSetup) { bPartOfRaceSetup = bInPartOfRaceSetup; }
 
 protected:
 	virtual void BuildScreen() override;
@@ -125,9 +175,11 @@ private:
 	/** Shows the passive of the character under the focus. */
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> DescriptionText;
+
+	bool bPartOfRaceSetup = false;
 };
 
-/** Results: every driver's place and times, then Restart / Change character / Main menu. */
+/** Results: every driver's place and times, then Restart / Change setup / Main menu. */
 UCLASS()
 class COSMICHOTSHOTSGAME_API URaceResultsWidget : public URaceScreenWidget
 {

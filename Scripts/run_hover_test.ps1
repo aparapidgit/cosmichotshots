@@ -53,6 +53,9 @@
 #                     (FLOW lines; the picked character races 7 computer drivers; RESULT lines for all 8)
 #   From the main menu: -Map "/Game/Maps/MainMenu" -SkipMenus 0 -Countdown 3 -Seconds 100 -LogInterval 30 -TimeoutSeconds 500 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Test.AutoMenu SingleRace,ch.Test.AutoSelectCharacter 4"
 #                     (FLOW main menu lines, then the race on the track's map; -Seconds counts from the start of the race map)
+#   Single Race setup (3 rivals, 2 laps, Hard, no item boxes; "rivals:laps:difficulty:items", fixed draw of the rivals' characters):
+#                     -Map "/Game/Maps/MainMenu" -SkipMenus 0 -Countdown 3 -Seconds 170 -LogInterval 30 -TimeoutSeconds 520 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Test.AutoMenu SingleRace,ch.Test.AutoSelectCharacter 4,ch.Test.AutoSetup 3:2:2:0,ch.Race.AICharacterSeed 7"
+#                     (FLOW single race line with the setup; 4 RESULT lines with laps=2; no ITEM lines)
 #   By default the script passes "ch.Race.Countdown 0" and "ch.Flow.SkipMenus 1": tests start at once, without the character select.
 # Race lines (LogCosmicRace) carry the race time of the physics step and must match at every frame rate too.
 # The Unreal editor must be closed.

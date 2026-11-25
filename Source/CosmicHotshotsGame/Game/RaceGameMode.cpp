@@ -322,7 +322,14 @@ void ARaceGameMode::SpawnAIOpponents()
 		{
 			continue;
 		}
-		if (!Available.IsEmpty())
+		// The setup names the rivals' characters (menus draw them); without that, the free roster characters in order.
+		const UCharacterDefinition* SetupCharacter = bHasConfig && Flow->GetRaceConfig().AICharacters.IsValidIndex(Index)
+			? Flow->GetRaceConfig().AICharacters[Index].Get() : nullptr;
+		if (SetupCharacter)
+		{
+			Vehicle->SetCharacter(SetupCharacter);
+		}
+		else if (!Available.IsEmpty())
 		{
 			Vehicle->SetCharacter(Available[Index % Available.Num()]);
 		}

@@ -49,6 +49,13 @@ struct FRaceSessionConfig
 	UPROPERTY(BlueprintReadWrite, Category = "Race")
 	int32 NumAIOpponents = 7;
 
+	/**
+	 * Character of each computer driver, in grid order. Empty (or shorter than NumAIOpponents) = the race
+	 * takes the free roster characters in roster order. Whoever builds the config resolves any random choice.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "Race")
+	TArray<TObjectPtr<const UCharacterDefinition>> AICharacters;
+
 	/** Index into the project's AI difficulties. Negative = the project default. */
 	UPROPERTY(BlueprintReadWrite, Category = "Race")
 	int32 AIDifficulty = -1;
@@ -77,8 +84,24 @@ public:
 	/**
 	 * Leaves the race (or any other map) for the main menu map and forgets the race setup.
 	 * Without a main menu map in the project settings, the current map is reloaded instead.
+	 * bOpenRaceSetup = the menu opens straight on the Single Race setup ("Change setup" on the results).
 	 */
-	void OpenMainMenu(const UObject* WorldContext);
+	void OpenMainMenu(const UObject* WorldContext, bool bOpenRaceSetup = false);
+
+	/** True once after OpenMainMenu(..., true): the main menu asks this when it starts, and then shows the race setup. */
+	bool ConsumeRaceSetupRequest();
+
+	/**
+	 * The Single Race setup the menus are filling in. It outlives the race, so "Change setup" starts from the
+	 * last choices. AICharacters is ignored here: StartSingleRace picks them.
+	 */
+	FRaceSessionConfig& EditSingleRaceSetup() { return SingleRaceSetup; }
+
+	/**
+	 * Turns the Single Race setup into the race config and starts the race. The rivals' characters are drawn
+	 * here, at random from the characters the humans did not take, so nothing random is left for the race itself.
+	 */
+	void StartSingleRace(const UObject* WorldContext);
 
 	/** The setup the next (or the running) race uses. */
 	void SetRaceConfig(const FRaceSessionConfig& InConfig);
@@ -106,5 +129,9 @@ private:
 	UPROPERTY(Transient)
 	FRaceResultData LastResults;
 
+	UPROPERTY(Transient)
+	FRaceSessionConfig SingleRaceSetup;
+
 	bool bHasConfig = false;
+	bool bRaceSetupRequested = false;
 };

@@ -59,5 +59,17 @@ namespace CosmicHotshots::RaceCVars
 
 	TAutoConsoleVariable<FString> AutoMenu(
 		TEXT("ch.Test.AutoMenu"), TEXT(""),
-		TEXT("Test helper: what the main menu map does by itself, without a screen. \"SingleRace\" = start a single race with the character of ch.Test.AutoSelectCharacter. Empty = nothing."), ECVF_Cheat);
+		TEXT("Test helper: what the main menu map does by itself, without a screen. \"SingleRace\" = start a single race with the character of ch.Test.AutoSelectCharacter (setup: ch.Test.AutoSetup), \"RaceSetup\" = open the race setup screen. Empty = nothing."), ECVF_Cheat);
+
+	TAutoConsoleVariable<FString> AutoSetup(
+		TEXT("ch.Test.AutoSetup"), TEXT(""),
+		TEXT("Test helper: the Single Race setup ch.Test.AutoMenu uses, as \"rivals:laps:difficulty:items\" (e.g. \"3:2:2:0\"; laps 0 = track default). Empty = the default race."), ECVF_Cheat);
+
+	TAutoConsoleVariable<FString> MenuKeys(
+		TEXT("ch.Test.MenuKeys"), TEXT(""),
+		TEXT("Test helper: keys pressed once on the main menu map, 1.5 s after it started, in order, as \"Left:Down:Enter\" (key names of FKey, e.g. Gamepad_DPad_Left). Needs a window."), ECVF_Cheat);
+
+	TAutoConsoleVariable<int32> AICharacterSeed(
+		TEXT("ch.Race.AICharacterSeed"), -1,
+		TEXT("Seed of the draw that gives the rivals of a Single Race their characters. Negative = a new draw every time."), ECVF_Cheat);
 }
