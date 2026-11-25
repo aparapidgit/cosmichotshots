@@ -46,6 +46,7 @@ namespace
 	// Buttons of the results screen.
 	constexpr int32 RestartButton = 0;
 	constexpr int32 ChangeCharacterButton = 1;
+	constexpr int32 ResultsMainMenuButton = 2;
 
 	UGameFlowSubsystem* GetFlow(const UObject* WorldContext)
 	{
@@ -166,18 +167,55 @@ void URaceScreenWidget::ShowScreen()
 	}
 
 	// Menu input: the focus sits on a button, so a gamepad works without a mouse.
+	// A screen that comes back from a child screen keeps the focus where the player left it.
+	const int32 FocusIndex = Buttons.IsValidIndex(LastFocusedButton) ? LastFocusedButton
+		: FMath::Clamp(InitialFocusButton, 0, FMath::Max(Buttons.Num() - 1, 0));
+
 	FInputModeUIOnly InputMode;
 	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 	if (!Buttons.IsEmpty())
 	{
-		InputMode.SetWidgetToFocus(Buttons[0]->TakeWidget());
+		InputMode.SetWidgetToFocus(Buttons[FocusIndex]->TakeWidget());
 	}
 	Player->SetInputMode(InputMode);
 	Player->SetShowMouseCursor(true);
 	if (!Buttons.IsEmpty())
 	{
-		Buttons[0]->SetKeyboardFocus();
+		Buttons[FocusIndex]->SetKeyboardFocus();
 	}
+}
+
+void URaceScreenWidget::OpenChildScreen(URaceScreenWidget* Child)
+{
+	if (!Child)
+	{
+		return;
+	}
+	Child->ParentScreen = this;
+	RemoveFromParent();
+	Child->ShowScreen();
+}
+
+void URaceScreenWidget::GoBack()
+{
+	if (URaceScreenWidget* Parent = ParentScreen)
+	{
+		ParentScreen = nullptr;
+		RemoveFromParent();
+		Parent->ShowScreen();
+	}
+}
+
+FReply URaceScreenWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
+{
+	// Back: the buttons do not use these keys, so they arrive here from whichever button has the focus.
+	const FKey Key = InKeyEvent.GetKey();
+	if (ParentScreen && (Key == EKeys::Gamepad_FaceButton_Right || Key == EKeys::Escape))
+	{
+		GoBack();
+		return FReply::Handled();
+	}
+	return Super::NativeOnKeyDown(InGeometry, InKeyEvent);
 }
 
 void URaceScreenWidget::HideScreen()
@@ -208,6 +246,10 @@ void URaceScreenWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTim
 	if (NewFocus != FocusedButton)
 	{
 		FocusedButton = NewFocus;
+		if (NewFocus != INDEX_NONE)
+		{
+			LastFocusedButton = NewFocus;
+		}
 		HandleFocusChanged(FocusedButton);
 	}
 }
@@ -272,6 +314,7 @@ void URaceResultsWidget::BuildScreen()
 
 	AddButton(LOCTEXT("Restart", "Restart"));
 	AddButton(LOCTEXT("ChangeCharacter", "Change character"));
+	AddButton(LOCTEXT("ResultsMainMenu", "Main menu"));
 }
 
 void URaceResultsWidget::HandleButton(int32 ButtonIndex)
@@ -283,6 +326,11 @@ void URaceResultsWidget::HandleButton(int32 ButtonIndex)
 	}
 
 	HideScreen();
+	if (ButtonIndex == ResultsMainMenuButton)
+	{
+		Flow->OpenMainMenu(this);
+		return;
+	}
 	if (ButtonIndex == ChangeCharacterButton)
 	{
 		// Without a race setup the track opens on the character select again.

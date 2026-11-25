@@ -46,3 +46,12 @@ namespace CosmicHotshots::RaceCVars
 	/** 1 = no character select: the race starts straight away with the dev console variables (headless tests). */
 	extern TAutoConsoleVariable<int32> SkipMenus;
 }
+
+namespace CosmicHotshots::RaceCVars
+{
+	/** Test helper: roster index picked at once on the character select (no screen). Negative = off. */
+	extern TAutoConsoleVariable<int32> AutoSelectCharacter;
+
+	/** Test helper: what the main menu map does by itself, without a screen ("SingleRace"). Empty = nothing. */
+	extern TAutoConsoleVariable<FString> AutoMenu;
+}

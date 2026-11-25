@@ -5,14 +5,8 @@
 #include "Game/GameFlowSubsystem.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/App.h"
+#include "Race/RaceDebug.h"
 #include "UI/RaceScreens.h"
-
-namespace
-{
-	TAutoConsoleVariable<int32> CVarAutoSelectCharacter(
-		TEXT("ch.Test.AutoSelectCharacter"), -1,
-		TEXT("Test helper: on the character select, pick this roster index at once (no screen). Negative = off."), ECVF_Cheat);
-}
 
 #include "Item/ItemLootTable.h"
 #include "Item/ItemSystemComponent.h"
@@ -164,7 +158,7 @@ void ARacePlayerController::SetUpRaceScreens()
 
 #if !UE_BUILD_SHIPPING
 	// Test helper (ch.Test.AutoSelectCharacter): pick a character without the screen, the way the button does.
-	const int32 AutoSelect = CVarAutoSelectCharacter.GetValueOnGameThread();
+	const int32 AutoSelect = CosmicHotshots::RaceCVars::AutoSelectCharacter.GetValueOnGameThread();
 	if (bWaitingForSetup && AutoSelect >= 0)
 	{
 		const UCharacterDefinition* PickedCharacter = GetDefault<UCosmicHotshotsSettings>()->FindCharacter(FString::FromInt(AutoSelect));

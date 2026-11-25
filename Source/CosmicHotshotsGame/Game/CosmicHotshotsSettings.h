@@ -67,6 +67,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Race")
 	TArray<TSoftObjectPtr<UTrackDefinition>> Tracks;
 
+	/** Map with the main menu: where the game starts and where "Main menu" buttons lead. */
+	UPROPERTY(Config, EditAnywhere, Category = "Menus", meta = (AllowedClasses = "/Script/Engine.World"))
+	FSoftObjectPath MainMenuMap;
+
 	/** Which items the item boxes give. Empty = boxes give nothing. */
 	UPROPERTY(Config, EditAnywhere, Category = "Items")
 	TSoftObjectPtr<UItemLootTable> ItemLootTable;

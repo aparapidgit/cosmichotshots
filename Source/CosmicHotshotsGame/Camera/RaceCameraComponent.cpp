@@ -18,7 +18,7 @@ namespace
 {
 	const FName CameraProbeTag(TEXT("RaceCameraProbe"));
 
-	constexpr float KmhToCmPerSecond = 100000.f / 3600.f;
+	constexpr float CameraKmhToCmPerSecond = 100000.f / 3600.f;
 
 	// FOV values in the tuning asset are horizontal degrees on a screen of this shape.
 	constexpr float ReferenceAspectRatio = 16.f / 9.f;
@@ -188,8 +188,8 @@ FVector URaceCameraComponent::ComputeDesiredLookDirection(const UCameraTuningDat
 
 	// Only blend towards the direction of travel when moving forwards fast enough;
 	// when reversing or standing the camera simply stays behind the car.
-	const double MinSpeed = ActiveTuning.VelocityLookMinSpeedKmh * KmhToCmPerSecond;
-	const double FullSpeed = FMath::Max(ActiveTuning.VelocityLookFullSpeedKmh * KmhToCmPerSecond, MinSpeed + 1.0);
+	const double MinSpeed = ActiveTuning.VelocityLookMinSpeedKmh * CameraKmhToCmPerSecond;
+	const double FullSpeed = FMath::Max(ActiveTuning.VelocityLookFullSpeedKmh * CameraKmhToCmPerSecond, MinSpeed + 1.0);
 	if (Speed <= MinSpeed || FVector::DotProduct(Velocity, Forward) <= 0.0)
 	{
 		return Forward;
@@ -256,7 +256,7 @@ void URaceCameraComponent::UpdateCamera(float DeltaTime, bool bSnap)
 	bool bBoosting = false;
 	if (Vehicle)
 	{
-		const float TopSpeed = Vehicle->GetStats()->GetMaxSpeedKmh() * KmhToCmPerSecond;
+		const float TopSpeed = Vehicle->GetStats()->GetMaxSpeedKmh() * CameraKmhToCmPerSecond;
 		const float ForwardSpeed = FMath::Abs(FVector::DotProduct(Owner->GetVelocity(), Owner->GetActorForwardVector()));
 		SpeedRatio = TopSpeed > 0.f ? FMath::Clamp(ForwardSpeed / TopSpeed, 0.f, 1.f) : 0.f;
 		bBoosting = Vehicle->GetHoverMovement()->GetSimState().DriftBoost.IsBoosting();

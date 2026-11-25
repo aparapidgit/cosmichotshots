@@ -50,3 +50,14 @@ namespace CosmicHotshots::RaceCVars
 		TEXT("ch.Flow.SkipMenus"), 0,
 		TEXT("1 = no character select: the race starts straight away, set up by the ch.Race.* console variables."), ECVF_Cheat);
 }
+
+namespace CosmicHotshots::RaceCVars
+{
+	TAutoConsoleVariable<int32> AutoSelectCharacter(
+		TEXT("ch.Test.AutoSelectCharacter"), -1,
+		TEXT("Test helper: on the character select, pick this roster index at once (no screen). Negative = off."), ECVF_Cheat);
+
+	TAutoConsoleVariable<FString> AutoMenu(
+		TEXT("ch.Test.AutoMenu"), TEXT(""),
+		TEXT("Test helper: what the main menu map does by itself, without a screen. \"SingleRace\" = start a single race with the character of ch.Test.AutoSelectCharacter. Empty = nothing."), ECVF_Cheat);
+}

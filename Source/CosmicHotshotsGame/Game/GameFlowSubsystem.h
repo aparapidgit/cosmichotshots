@@ -71,6 +71,15 @@ class COSMICHOTSHOTSGAME_API UGameFlowSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
+	/** The flow subsystem of the game the object lives in. Null without a world or a game instance. */
+	static UGameFlowSubsystem* Get(const UObject* WorldContext);
+
+	/**
+	 * Leaves the race (or any other map) for the main menu map and forgets the race setup.
+	 * Without a main menu map in the project settings, the current map is reloaded instead.
+	 */
+	void OpenMainMenu(const UObject* WorldContext);
+
 	/** The setup the next (or the running) race uses. */
 	void SetRaceConfig(const FRaceSessionConfig& InConfig);
 	void ClearRaceConfig();

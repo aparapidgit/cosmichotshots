@@ -51,9 +51,29 @@ public:
 	/** Removes the screen and gives the input back to the game. */
 	void HideScreen();
 
+	/**
+	 * Screen stack: puts Child in place of this screen. The back button (gamepad B, Escape) or GoBack()
+	 * on the child brings this screen back, with the focus where it was.
+	 */
+	void OpenChildScreen(URaceScreenWidget* Child);
+
+	/** Closes this screen and shows the one it was opened from. Does nothing on a screen without a parent. */
+	void GoBack();
+
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
+
+	/** Creates a screen for the same player (to hand to OpenChildScreen). */
+	template <typename ScreenType>
+	ScreenType* CreateScreen()
+	{
+		return CreateWidget<ScreenType>(GetOwningPlayer(), ScreenType::StaticClass());
+	}
+
+	/** Button that has the focus when the screen is shown for the first time. Set it in BuildScreen. */
+	int32 InitialFocusButton = 0;
 
 	/** Fills the screen: call AddTitle / AddLine / AddButton. */
 	virtual void BuildScreen() PURE_VIRTUAL(URaceScreenWidget::BuildScreen, );
@@ -77,7 +97,14 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<URaceMenuButton>> Buttons;
 
+	/** The screen this one was opened from (screen stack). Kept alive while it is off the viewport. */
+	UPROPERTY(Transient)
+	TObjectPtr<URaceScreenWidget> ParentScreen;
+
 	int32 FocusedButton = INDEX_NONE;
+
+	/** Last button that had the focus: gets it back when the screen is shown again. */
+	int32 LastFocusedButton = INDEX_NONE;
 };
 
 /** Character select: one button per race character; picking one sets up the race and starts it. */
@@ -100,7 +127,7 @@ private:
 	TObjectPtr<UTextBlock> DescriptionText;
 };
 
-/** Results: every driver's place and times, then Restart / Change character. */
+/** Results: every driver's place and times, then Restart / Change character / Main menu. */
 UCLASS()
 class COSMICHOTSHOTSGAME_API URaceResultsWidget : public URaceScreenWidget
 {
