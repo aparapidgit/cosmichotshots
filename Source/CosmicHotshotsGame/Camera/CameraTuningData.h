@@ -50,6 +50,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Base FOV", meta = (ClampMin = "10.0", ClampMax = "170.0"))
 	float MaxBaseFov = 120.f;
 
+	/** Step of the FOV slider in the Options menu (degrees). The three presets are always on the slider too. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Options", meta = (ClampMin = "1.0"))
+	float FovOptionStep = 5.f;
+
+	/** Strength of camera shake and speed lines when the player picks "Low" in Options (Off = 0, Normal = 1). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Options", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float LowIntensityScale = 0.5f;
+
 	// -------------------------------------------------------------- Framing
 
 	/** Camera distance behind the car by base FOV (X = base FOV, Y = cm). Close = nearer, Wide = farther. */

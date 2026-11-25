@@ -89,6 +89,9 @@ private:
 	bool bLookBack = false;
 	bool bHasSnapped = false;
 
+	/** The base FOV was changed while the game was paused (Options preview): motion blur is off until the next tick. */
+	bool bPausedPreview = false;
+
 	// Smoothed state.
 	FVector SmoothedPivot = FVector::ZeroVector;
 	/** Direction the camera looks along, as pitch and yaw (no roll). */

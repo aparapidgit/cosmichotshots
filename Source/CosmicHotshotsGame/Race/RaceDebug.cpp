@@ -67,7 +67,15 @@ namespace CosmicHotshots::RaceCVars
 
 	TAutoConsoleVariable<FString> MenuKeys(
 		TEXT("ch.Test.MenuKeys"), TEXT(""),
-		TEXT("Test helper: keys pressed once on the main menu map, 1.5 s after it started, in order, as \"Left:Down:Enter\" (key names of FKey, e.g. Gamepad_DPad_Left). Needs a window."), ECVF_Cheat);
+		TEXT("Test helper: keys pressed through Slate like a player would, in batches \"time@Key:Key\" separated by '/', e.g. \"1.5@Left:Down/4@Enter\" (seconds since the game started ticking; FKey names such as Gamepad_DPad_Left). Needs a window."), ECVF_Cheat);
+
+	TAutoConsoleVariable<float> WallScreenshotTime(
+		TEXT("ch.Test.WallScreenshotTime"), 0.f,
+		TEXT("Test helper: take one screenshot at this wall-clock time in seconds since the game started ticking (also while paused). 0 = off."), ECVF_Cheat);
+
+	TAutoConsoleVariable<float> WallQuitTime(
+		TEXT("ch.Test.WallQuitTime"), 0.f,
+		TEXT("Test helper: quit at this wall-clock time in seconds since the game started ticking (also while paused). 0 = off."), ECVF_Cheat);
 
 	TAutoConsoleVariable<int32> AICharacterSeed(
 		TEXT("ch.Race.AICharacterSeed"), -1,

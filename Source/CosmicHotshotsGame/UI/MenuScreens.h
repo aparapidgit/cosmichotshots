@@ -81,6 +81,58 @@ private:
 	int32 NextButton = INDEX_NONE;
 };
 
+/** Options: the list of option groups. Opened from the main menu and from the pause menu. */
+UCLASS()
+class COSMICHOTSHOTSGAME_API UOptionsWidget : public URaceScreenWidget
+{
+	GENERATED_BODY()
+
+protected:
+	virtual void BuildScreen() override;
+	virtual void HandleButton(int32 ButtonIndex) override;
+};
+
+/**
+ * Options > Camera: base FOV (a stepped slider with the presets Close / Normal / Wide on it), camera shake
+ * and speed lines. Every change goes to the player's settings at once: saved, and shown on the running
+ * race when the screen was opened from the pause menu.
+ */
+UCLASS()
+class COSMICHOTSHOTSGAME_API UCameraOptionsWidget : public URaceScreenWidget
+{
+	GENERATED_BODY()
+
+protected:
+	virtual void BuildScreen() override;
+	virtual void HandleButton(int32 ButtonIndex) override;
+	virtual void HandleOptionChanged(int32 ButtonIndex, int32 Value) override;
+
+private:
+	/** FOV of every position of the slider, in degrees. */
+	TArray<float> FovValues;
+
+	int32 FovRow = INDEX_NONE;
+	int32 ShakeRow = INDEX_NONE;
+	int32 SpeedLinesRow = INDEX_NONE;
+};
+
+/** Pause menu of a race: Resume, Options, Restart, Main menu. The game is paused while it is open. */
+UCLASS()
+class COSMICHOTSHOTSGAME_API UPauseMenuWidget : public URaceScreenWidget
+{
+	GENERATED_BODY()
+
+protected:
+	virtual void BuildScreen() override;
+	virtual void HandleButton(int32 ButtonIndex) override;
+	virtual bool HandleBackOnRoot() override;
+	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
+
+private:
+	void Resume();
+	void HandleMainMenuChoice(int32 AnswerIndex);
+};
+
 /** Track select: one button per track of the project; picking one starts the race. */
 UCLASS()
 class COSMICHOTSHOTSGAME_API UTrackSelectWidget : public URaceScreenWidget

@@ -33,6 +33,9 @@ namespace
 	constexpr int32 OverlayZOrder = 5;
 
 	const FLinearColor ScreenBackColour(0.02f, 0.02f, 0.03f, 0.88f);
+	/** Opacity of the screen background over a paused race. */
+	constexpr float PausedScreenBackOpacity = 0.45f;
+
 	const FLinearColor ButtonColour(0.25f, 0.25f, 0.28f, 1.f);
 	const FLinearColor ButtonFocusColour(1.f, 0.8f, 0.15f, 1.f);
 	const FLinearColor ScreenOwnRowColour(1.f, 0.85f, 0.2f, 1.f);
@@ -100,7 +103,14 @@ TSharedRef<SWidget> URaceScreenWidget::RebuildWidget()
 	if (WidgetTree && !WidgetTree->RootWidget)
 	{
 		UBorder* Background = WidgetTree->ConstructWidget<UBorder>();
-		Background->SetBrushColor(ScreenBackColour);
+		// Over a paused race the screen is see-through, so the race (and the Options live preview) shows behind it.
+		const APlayerController* OwningPlayer = GetOwningPlayer();
+		FLinearColor BackColour = ScreenBackColour;
+		if (OwningPlayer && OwningPlayer->IsPaused())
+		{
+			BackColour.A = PausedScreenBackOpacity;
+		}
+		Background->SetBrushColor(BackColour);
 		Background->SetHorizontalAlignment(HAlign_Center);
 		Background->SetVerticalAlignment(VAlign_Center);
 		WidgetTree->RootWidget = Background;
@@ -280,10 +290,18 @@ FReply URaceScreenWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FKe
 {
 	// Back: the buttons do not use these keys, so they arrive here from whichever button has the focus.
 	const FKey Key = InKeyEvent.GetKey();
-	if (ParentScreen && (Key == EKeys::Gamepad_FaceButton_Right || Key == EKeys::Escape))
+	// Not on auto-repeat: a held button would go back through several screens.
+	if (!InKeyEvent.IsRepeat() && (Key == EKeys::Gamepad_FaceButton_Right || Key == EKeys::Escape))
 	{
-		GoBack();
-		return FReply::Handled();
+		if (ParentScreen)
+		{
+			GoBack();
+			return FReply::Handled();
+		}
+		if (HandleBackOnRoot())
+		{
+			return FReply::Handled();
+		}
 	}
 	return Super::NativeOnKeyDown(InGeometry, InKeyEvent);
 }

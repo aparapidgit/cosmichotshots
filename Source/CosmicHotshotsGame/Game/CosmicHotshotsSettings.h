@@ -89,4 +89,8 @@ public:
 	/** Input actions and bindings used while driving. */
 	UPROPERTY(Config, EditAnywhere, Category = "Input")
 	TSoftObjectPtr<UDrivingInputConfig> DrivingInput;
+
+	/** Input actions and bindings that are not driving (pause). */
+	UPROPERTY(Config, EditAnywhere, Category = "Input")
+	TSoftObjectPtr<class USystemInputConfig> SystemInput;
 };

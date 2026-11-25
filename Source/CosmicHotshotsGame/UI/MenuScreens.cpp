@@ -2,6 +2,8 @@
 
 #include "CosmicHotshotsGame.h"
 #include "AI/AIDifficultyData.h"
+#include "Camera/CameraTuningData.h"
+#include "Player/PlayerSettingsSubsystem.h"
 #include "Game/CosmicHotshotsSettings.h"
 #include "Game/GameFlowSubsystem.h"
 #include "GameFramework/PlayerController.h"
@@ -20,6 +22,22 @@ namespace
 	// Answers of the exit confirmation. "Cancel" comes first and has the focus.
 	constexpr int32 ExitDialogCancelAnswer = 0;
 	constexpr int32 ExitDialogExitAnswer = 1;
+
+	// Buttons of the Options screen.
+	constexpr int32 OptionsCameraButton = 0;
+
+	// Buttons of the pause menu, top to bottom.
+	constexpr int32 PauseResumeButton = 0;
+	constexpr int32 PauseOptionsButton = 1;
+	constexpr int32 PauseRestartButton = 2;
+	constexpr int32 PauseMainMenuButton = 3;
+
+	// Answers of the "leave the race" confirmation. "Cancel" comes first and has the focus.
+	constexpr int32 LeaveDialogCancelAnswer = 0;
+	constexpr int32 LeaveDialogLeaveAnswer = 1;
+
+	/** Two FOV values closer than this (degrees) are the same position of the FOV slider. */
+	constexpr float FovMatchTolerance = 0.5f;
 
 	/** Humans in a Single Race until split-screen exists. */
 	constexpr int32 SetupHumanPlayers = 1;
@@ -79,7 +97,7 @@ void UMainMenuWidget::HandleButton(int32 ButtonIndex)
 		break;
 
 	case MainMenuOptionsButton:
-		ShowNotAvailable(LOCTEXT("Options", "Options"));
+		OpenChildScreen(CreateScreen<UOptionsWidget>());
 		break;
 
 	case MainMenuExitButton:
@@ -186,6 +204,194 @@ void URaceSetupWidget::HandleButton(int32 ButtonIndex)
 	UCharacterSelectWidget* CharacterSelect = CreateScreen<UCharacterSelectWidget>();
 	CharacterSelect->SetPartOfRaceSetup(true);
 	OpenChildScreen(CharacterSelect);
+}
+
+// --- UOptionsWidget
+
+void UOptionsWidget::BuildScreen()
+{
+	AddTitle(LOCTEXT("OptionsTitle", "OPTIONS"));
+	AddButton(LOCTEXT("OptionsCamera", "Camera"));
+	AddButton(LOCTEXT("OptionsBack", "Back"));
+}
+
+void UOptionsWidget::HandleButton(int32 ButtonIndex)
+{
+	if (ButtonIndex == OptionsCameraButton)
+	{
+		OpenChildScreen(CreateScreen<UCameraOptionsWidget>());
+	}
+	else
+	{
+		GoBack();
+	}
+}
+
+// --- UCameraOptionsWidget
+
+void UCameraOptionsWidget::BuildScreen()
+{
+	AddTitle(LOCTEXT("CameraTitle", "CAMERA"));
+
+	UPlayerSettingsSubsystem* Settings = UPlayerSettingsSubsystem::Get(GetOwningPlayer());
+	const UCameraTuningData* Tuning = UPlayerSettingsSubsystem::GetCameraTuning();
+	const FPlayerSettingsData Current = Settings ? Settings->GetSettings() : FPlayerSettingsData();
+	const float CurrentFov = Settings ? Settings->GetBaseFov() : Tuning->FovNormal;
+
+	// The slider: every step between the limits, plus the three presets wherever they fall.
+	FovValues.Reset();
+	for (float Fov = Tuning->MinBaseFov; Fov <= Tuning->MaxBaseFov + UE_KINDA_SMALL_NUMBER; Fov += FMath::Max(Tuning->FovOptionStep, 1.f))
+	{
+		FovValues.Add(Fov);
+	}
+	for (const float Preset : { Tuning->FovClose, Tuning->FovNormal, Tuning->FovWide })
+	{
+		if (Preset >= Tuning->MinBaseFov && Preset <= Tuning->MaxBaseFov && !FovValues.ContainsByPredicate([Preset](float Fov) { return FMath::IsNearlyEqual(Fov, Preset, FovMatchTolerance); }))
+		{
+			FovValues.Add(Preset);
+		}
+	}
+	FovValues.Sort();
+
+	TArray<FText> FovTexts;
+	int32 CurrentFovIndex = 0;
+	for (int32 Index = 0; Index < FovValues.Num(); ++Index)
+	{
+		const float Fov = FovValues[Index];
+		const FText Degrees = FText::AsNumber(FMath::RoundToInt32(Fov));
+		const FText PresetName = FMath::IsNearlyEqual(Fov, Tuning->FovClose, FovMatchTolerance) ? LOCTEXT("FovClose", "Close")
+			: FMath::IsNearlyEqual(Fov, Tuning->FovNormal, FovMatchTolerance) ? LOCTEXT("FovNormal", "Normal")
+			: FMath::IsNearlyEqual(Fov, Tuning->FovWide, FovMatchTolerance) ? LOCTEXT("FovWide", "Wide")
+			: FText::GetEmpty();
+		FovTexts.Add(PresetName.IsEmpty() ? Degrees : FText::Format(LOCTEXT("FovPreset", "{0}  ({1})"), Degrees, PresetName));
+
+		if (FMath::Abs(Fov - CurrentFov) < FMath::Abs(FovValues[CurrentFovIndex] - CurrentFov))
+		{
+			CurrentFovIndex = Index;
+		}
+	}
+	FovRow = AddOptionRow(LOCTEXT("CameraFov", "Field of view"), FovTexts, CurrentFovIndex);
+
+	// Row values are the EEffectIntensity values in order.
+	const TArray<FText> IntensityTexts = { LOCTEXT("IntensityOff", "Off"), LOCTEXT("IntensityLow", "Low"), LOCTEXT("IntensityNormal", "Normal") };
+	ShakeRow = AddOptionRow(LOCTEXT("CameraShake", "Camera shake"), IntensityTexts, static_cast<int32>(Current.CameraShake));
+	SpeedLinesRow = AddOptionRow(LOCTEXT("CameraSpeedLines", "Speed lines"), IntensityTexts, static_cast<int32>(Current.SpeedLines));
+
+	AddButton(LOCTEXT("CameraBack", "Back"));
+}
+
+void UCameraOptionsWidget::HandleOptionChanged(int32 ButtonIndex, int32 Value)
+{
+	UPlayerSettingsSubsystem* Settings = UPlayerSettingsSubsystem::Get(GetOwningPlayer());
+	if (!Settings)
+	{
+		return;
+	}
+
+	if (ButtonIndex == FovRow && FovValues.IsValidIndex(Value))
+	{
+		Settings->SetBaseFov(FovValues[Value]);
+	}
+	else if (ButtonIndex == ShakeRow)
+	{
+		Settings->SetCameraShake(static_cast<EEffectIntensity>(Value));
+	}
+	else if (ButtonIndex == SpeedLinesRow)
+	{
+		Settings->SetSpeedLines(static_cast<EEffectIntensity>(Value));
+	}
+}
+
+void UCameraOptionsWidget::HandleButton(int32 ButtonIndex)
+{
+	// The only plain button is Back.
+	GoBack();
+}
+
+// --- UPauseMenuWidget
+
+void UPauseMenuWidget::BuildScreen()
+{
+	AddTitle(LOCTEXT("PauseTitle", "PAUSED"));
+	AddButton(LOCTEXT("PauseResume", "Resume"));
+	AddButton(LOCTEXT("PauseOptions", "Options"));
+	AddButton(LOCTEXT("PauseRestart", "Restart"));
+	AddButton(LOCTEXT("PauseMainMenu", "Main menu"));
+}
+
+void UPauseMenuWidget::Resume()
+{
+	APlayerController* Player = GetOwningPlayer();
+	HideScreen();
+	if (Player)
+	{
+		Player->SetPause(false);
+	}
+	UE_LOG(LogCosmicRace, Log, TEXT("FLOW pause: resumed"));
+}
+
+bool UPauseMenuWidget::HandleBackOnRoot()
+{
+	Resume();
+	return true;
+}
+
+FReply UPauseMenuWidget::NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
+{
+	// The pause button itself closes the menu again (the game does not see input while the menu is up).
+	// Not on auto-repeat: the press that opened the menu is still held and would close it at once.
+	if (InKeyEvent.GetKey() == EKeys::Gamepad_Special_Right && !InKeyEvent.IsRepeat())
+	{
+		Resume();
+		return FReply::Handled();
+	}
+	return Super::NativeOnKeyDown(InGeometry, InKeyEvent);
+}
+
+void UPauseMenuWidget::HandleButton(int32 ButtonIndex)
+{
+	UGameFlowSubsystem* Flow = UGameFlowSubsystem::Get(this);
+	switch (ButtonIndex)
+	{
+	case PauseResumeButton:
+		Resume();
+		break;
+
+	case PauseOptionsButton:
+		OpenChildScreen(CreateScreen<UOptionsWidget>());
+		break;
+
+	case PauseRestartButton:
+		if (Flow)
+		{
+			Resume();
+			Flow->StartRace(this);
+		}
+		break;
+
+	case PauseMainMenuButton:
+	{
+		UMenuDialogWidget* Dialog = CreateScreen<UMenuDialogWidget>();
+		Dialog->Setup(LOCTEXT("LeaveTitle", "MAIN MENU"), LOCTEXT("LeaveMessage", "Leave the race?"),
+			{ LOCTEXT("LeaveCancel", "Cancel"), LOCTEXT("LeaveConfirm", "Leave race") }, LeaveDialogCancelAnswer);
+		Dialog->OnChoice.AddUObject(this, &UPauseMenuWidget::HandleMainMenuChoice);
+		OpenChildScreen(Dialog);
+		break;
+	}
+
+	default:
+		break;
+	}
+}
+
+void UPauseMenuWidget::HandleMainMenuChoice(int32 AnswerIndex)
+{
+	UGameFlowSubsystem* Flow = UGameFlowSubsystem::Get(this);
+	if (AnswerIndex == LeaveDialogLeaveAnswer && Flow)
+	{
+		Resume();
+		Flow->OpenMainMenu(this);
+	}
 }
 
 // --- UTrackSelectWidget

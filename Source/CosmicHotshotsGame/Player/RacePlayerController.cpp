@@ -5,7 +5,10 @@
 #include "Game/GameFlowSubsystem.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/App.h"
+#include "Input/SystemInputConfig.h"
+#include "Player/PlayerSettingsSubsystem.h"
 #include "Race/RaceDebug.h"
+#include "UI/MenuScreens.h"
 #include "UI/RaceScreens.h"
 
 #include "Item/ItemLootTable.h"
@@ -27,6 +30,13 @@
 void ARacePlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
+
+	// System actions (pause) do not depend on the driving config.
+	SystemInput = GetDefault<UCosmicHotshotsSettings>()->SystemInput.LoadSynchronous();
+	if (UEnhancedInputComponent* SystemEnhancedInput = Cast<UEnhancedInputComponent>(InputComponent); SystemEnhancedInput && SystemInput && SystemInput->Pause)
+	{
+		SystemEnhancedInput->BindAction(SystemInput->Pause, ETriggerEvent::Started, this, &ARacePlayerController::HandlePausePressed);
+	}
 
 	DrivingInput = GetDefault<UCosmicHotshotsSettings>()->DrivingInput.LoadSynchronous();
 	if (!DrivingInput)
@@ -61,18 +71,42 @@ void ARacePlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (!DrivingInput || !DrivingInput->MappingContext)
+	const ULocalPlayer* LocalPlayer = GetLocalPlayer();
+	UEnhancedInputLocalPlayerSubsystem* InputSubsystem = LocalPlayer ? LocalPlayer->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>() : nullptr;
+	if (!InputSubsystem)
+	{
+		return;
+	}
+	if (DrivingInput && DrivingInput->MappingContext)
+	{
+		InputSubsystem->AddMappingContext(DrivingInput->MappingContext, DrivingInput->MappingPriority);
+	}
+	if (SystemInput && SystemInput->MappingContext)
+	{
+		InputSubsystem->AddMappingContext(SystemInput->MappingContext, SystemInput->MappingPriority);
+	}
+}
+
+void ARacePlayerController::HandlePausePressed()
+{
+	// Nothing to pause on: no window, already paused, or a screen is up (character select, results).
+	if (!FApp::CanEverRender() || IsPaused() || (ScreenWidget && ScreenWidget->IsInViewport()))
+	{
+		return;
+	}
+	const ARaceGameState* RaceState = GetWorld() ? GetWorld()->GetGameState<ARaceGameState>() : nullptr;
+	if (!RaceState || RaceState->GetRacePhase() != ERacePhase::Racing)
 	{
 		return;
 	}
 
-	if (const ULocalPlayer* LocalPlayer = GetLocalPlayer())
+	if (!SetPause(true))
 	{
-		if (UEnhancedInputLocalPlayerSubsystem* InputSubsystem = LocalPlayer->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
-		{
-			InputSubsystem->AddMappingContext(DrivingInput->MappingContext, DrivingInput->MappingPriority);
-		}
+		return;
 	}
+	UE_LOG(LogCosmicRace, Log, TEXT("FLOW pause: paused"));
+	URaceScreenWidget* PauseMenu = CreateWidget<UPauseMenuWidget>(this, UPauseMenuWidget::StaticClass());
+	PauseMenu->ShowScreen();
 }
 
 void ARacePlayerController::GiveItem(const FString& ItemId)
@@ -144,6 +178,14 @@ void ARacePlayerController::SetUpRaceScreens()
 	if (!IsLocalController())
 	{
 		return;
+	}
+
+	// The player's Options (FOV, shake, speed lines) go to the camera of the car they drive. Here, in the first
+	// tick, because console variables that redirect or switch off the settings file are not there earlier.
+	if (UPlayerSettingsSubsystem* PlayerSettings = UPlayerSettingsSubsystem::Get(this))
+	{
+		const ARaceVehicle* OwnVehicle = Cast<ARaceVehicle>(GetPawn());
+		PlayerSettings->ApplyToCamera(OwnVehicle ? OwnVehicle->GetRaceCamera() : nullptr);
 	}
 
 	ARaceGameState* RaceState = GetWorld()->GetGameState<ARaceGameState>();

@@ -59,6 +59,13 @@ private:
 	UFUNCTION()
 	void HandleRaceFinished(const FRaceResultData& Results);
 
+	/** Pause button: pauses the game and opens the pause menu, while a race is running and no other screen is up. */
+	void HandlePausePressed();
+
+	/** Loaded from project settings (Cosmic Hotshots > Input). Pause and other non-driving actions. */
+	UPROPERTY(Transient)
+	TObjectPtr<const class USystemInputConfig> SystemInput;
+
 	bool bRaceScreensSetUp = false;
 
 	UPROPERTY(Transient)

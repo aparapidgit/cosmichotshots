@@ -89,7 +89,26 @@ const UCameraTuningData* URaceCameraComponent::GetActiveTuning() const
 void URaceCameraComponent::SetBaseFov(float InBaseFov)
 {
 	const UCameraTuningData* ActiveTuning = GetActiveTuning();
+	const float OldBaseFov = GetBaseFov();
 	BaseFovOverride = FMath::Clamp(InBaseFov, ActiveTuning->MinBaseFov, ActiveTuning->MaxBaseFov);
+
+	// Show the change at once (Options live preview), also while the game is paused and the camera does not
+	// tick: move the smoothed FOV by the same amount and re-place the camera for the new distance and height.
+	const float NewBaseFov = GetBaseFov();
+	if (bHasSnapped && !FMath::IsNearlyEqual(OldBaseFov, NewBaseFov))
+	{
+		SmoothedFov += NewBaseFov - OldBaseFov;
+		UpdateCamera(0.f, /*bSnap=*/false);
+
+		// A paused world keeps the camera's previous position for motion blur, so the jump would smear the still
+		// picture for as long as the pause lasts: no motion blur on this camera until it ticks again.
+		if (GetWorld() && GetWorld()->IsPaused())
+		{
+			PostProcessSettings.bOverride_MotionBlurAmount = true;
+			PostProcessSettings.MotionBlurAmount = 0.f;
+			bPausedPreview = true;
+		}
+	}
 }
 
 void URaceCameraComponent::SetBaseFovPreset(ECameraFovPreset Preset)
@@ -175,6 +194,14 @@ void URaceCameraComponent::SnapBehindVehicle()
 void URaceCameraComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	// Running again after an Options preview under pause: motion blur back to the project's setting.
+	if (bPausedPreview)
+	{
+		bPausedPreview = false;
+		PostProcessSettings.bOverride_MotionBlurAmount = false;
+	}
+
 	UpdateCamera(DeltaTime, /*bSnap=*/!bHasSnapped);
 	bHasSnapped = true;
 }

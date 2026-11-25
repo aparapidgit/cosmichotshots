@@ -99,6 +99,9 @@ protected:
 	/** A button was clicked (mouse, keyboard or the gamepad's accept button). */
 	virtual void HandleButton(int32 ButtonIndex) PURE_VIRTUAL(URaceScreenWidget::HandleButton, );
 
+	/** The back button was pressed on a screen that was not opened from another one. Return true when it did something. */
+	virtual bool HandleBackOnRoot() { return false; }
+
 	/** The focus moved to another button (INDEX_NONE = none). */
 	virtual void HandleFocusChanged(int32 ButtonIndex) {}
 
