@@ -45,12 +45,22 @@ void UTestDriverSubsystem::Tick(float DeltaTime)
 	{
 		if (!HeldKey.IsEmpty())
 		{
-			FSlateApplication::Get().ProcessKeyUpEvent(FKeyEvent(FKey(*HeldKey), FModifierKeysState(), /*InUserIndex=*/0, /*bInIsRepeat=*/false, 0, 0));
-			HeldKey.Reset();
+			if (--HeldFramesRemaining <= 0)
+			{
+				FSlateApplication::Get().ProcessKeyUpEvent(FKeyEvent(FKey(*HeldKey), FModifierKeysState(), /*InUserIndex=*/0, /*bInIsRepeat=*/false, 0, 0));
+				HeldKey.Reset();
+			}
 		}
 		else
 		{
+			// "Key*Frames" holds the key that many frames; a plain key is down for one frame.
+			FString FramesText;
 			HeldKey = PendingKeys[0];
+			HeldFramesRemaining = 1;
+			if (PendingKeys[0].Split(TEXT("*"), &HeldKey, &FramesText))
+			{
+				HeldFramesRemaining = FMath::Max(FCString::Atoi(*FramesText), 1);
+			}
 			PendingKeys.RemoveAt(0);
 			FSlateApplication::Get().ProcessKeyDownEvent(FKeyEvent(FKey(*HeldKey), FModifierKeysState(), /*InUserIndex=*/0, /*bInIsRepeat=*/false, 0, 0));
 		}

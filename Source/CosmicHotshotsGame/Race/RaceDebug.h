@@ -81,6 +81,15 @@ namespace CosmicHotshots::RaceCVars
 	extern TAutoConsoleVariable<int32> AdventureNew;
 	extern TAutoConsoleVariable<int32> AdventureLevel;
 
+	/** Test helper for ch.Test.AutoMenu "Adventure": 1 = open the hub instead of starting the level's race. */
+	extern TAutoConsoleVariable<int32> AdventureHub;
+
+	/** Test helper: in the hub, walk into the portal of this level once (as the Interact button does). Negative = off. */
+	extern TAutoConsoleVariable<int32> HubEnterLevel;
+
+	/** Test helper: 1 = after an Adventure race go straight back to the hub (as the results screen's buttons do). */
+	extern TAutoConsoleVariable<int32> AutoReturnToHub;
+
 	/** Seed of the draw that gives the rivals of a Single Race their characters. Negative = a new draw every time. */
 	extern TAutoConsoleVariable<int32> AICharacterSeed;
 }

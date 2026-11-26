@@ -101,6 +101,18 @@ namespace CosmicHotshots::RaceCVars
 		TEXT("ch.Test.AdventureLevel"), 0,
 		TEXT("Test helper for ch.Test.AutoMenu Adventure: index of the level to start (0 = first)."), ECVF_Cheat);
 
+	TAutoConsoleVariable<int32> AdventureHub(
+		TEXT("ch.Test.AdventureHub"), 0,
+		TEXT("Test helper for ch.Test.AutoMenu Adventure: 1 = open the hub instead of starting the level's race."), ECVF_Cheat);
+
+	TAutoConsoleVariable<int32> HubEnterLevel(
+		TEXT("ch.Test.HubEnterLevel"), -1,
+		TEXT("Test helper: in the hub, walk into the portal of this level once per run (as the Interact button does). Negative = off."), ECVF_Cheat);
+
+	TAutoConsoleVariable<int32> AutoReturnToHub(
+		TEXT("ch.Test.AutoReturnToHub"), 0,
+		TEXT("Test helper: 1 = after an Adventure race go straight back to the hub (as the results screen's buttons do)."), ECVF_Cheat);
+
 	TAutoConsoleVariable<int32> AICharacterSeed(
 		TEXT("ch.Race.AICharacterSeed"), -1,
 		TEXT("Seed of the draw that gives the rivals of a Single Race their characters. Negative = a new draw every time."), ECVF_Cheat);

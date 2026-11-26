@@ -11,12 +11,19 @@ An IMC_System / DA_SystemInput made by an older version of this script only gets
 bindings of actions that are new, and references that are still empty. Nothing in them is changed or removed.
 The driving assets (IMC_Driving, DA_DrivingInput) are not touched.
 
+On foot in the Adventure hub:
+  /Game/Input/Actions/IA_Move, IA_Look, IA_LookMouse (Axis2D), IA_Run, IA_Interact (bool)
+  /Game/Input/IMC_OnFoot            Move = left stick / WASD, Look = right stick, LookMouse = mouse,
+                                    Run = left stick click / Left Shift, Interact = A / E
+  /Game/Input/DA_OnFootInput        UOnFootInputConfig pointing at the above
+  /Game/Data/Adventure/DA_AdventureHubTuning   UAdventureHubTuningData with the class defaults
+
 Adventure Mode (placeholder campaign: every level on the test track, difficulty rising):
   /Game/Data/Adventure/DA_AdventureLevel_S<section>_L<level>   3 sections x 4 levels (UAdventureLevelDefinition)
   /Game/Data/Adventure/DA_AdventureCampaign                    player character Spark, the 3 sections in order
 
-The project settings point at DA_SystemInput and DA_AdventureCampaign: Config/DefaultGame.ini
-(CosmicHotshotsSettings: SystemInput, AdventureCampaign).
+The project settings point at these: Config/DefaultGame.ini (CosmicHotshotsSettings: SystemInput,
+OnFootInput, AdventureCampaign, AdventureHubTuning).
 
 HOW TO RUN (the editor must be closed)
   UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript -script="<this file>"
@@ -45,6 +52,40 @@ SYSTEM_BINDINGS = [
 CONFIG_ACTIONS = {
     "pause": "IA_Pause",
     "toggle_hud": "IA_ToggleHud",
+}
+
+# On-foot actions: name -> value type
+ON_FOOT_ACTIONS = {
+    "IA_Move": unreal.InputActionValueType.AXIS2D,
+    "IA_Look": unreal.InputActionValueType.AXIS2D,
+    "IA_LookMouse": unreal.InputActionValueType.AXIS2D,
+    "IA_Run": unreal.InputActionValueType.BOOLEAN,
+    "IA_Interact": unreal.InputActionValueType.BOOLEAN,
+}
+
+# (action, key name, modifiers) of IMC_OnFoot.  Move and Look are Axis2D: X = right, Y = forward / up.
+# "swizzle" turns a key's value into the Y axis, "negate" flips it, "deadzone" ignores a resting stick.
+ON_FOOT_BINDINGS = [
+    ("IA_Move", "Gamepad_Left2D", ["deadzone"]),
+    ("IA_Move", "W", ["swizzle"]),
+    ("IA_Move", "S", ["swizzle", "negate"]),
+    ("IA_Move", "D", []),
+    ("IA_Move", "A", ["negate"]),
+    ("IA_Look", "Gamepad_Right2D", ["deadzone"]),
+    ("IA_LookMouse", "Mouse2D", []),
+    ("IA_Run", "Gamepad_LeftThumbstick", []),
+    ("IA_Run", "LeftShift", []),
+    ("IA_Interact", "Gamepad_FaceButton_Bottom", []),
+    ("IA_Interact", "E", []),
+]
+
+# UOnFootInputConfig property -> action name
+ON_FOOT_CONFIG_ACTIONS = {
+    "move": "IA_Move",
+    "look": "IA_Look",
+    "look_mouse": "IA_LookMouse",
+    "run": "IA_Run",
+    "interact": "IA_Interact",
 }
 
 ADVENTURE_DIR = "/Game/Data/Adventure"
@@ -83,6 +124,53 @@ def make_mapping(action, key_name):
     mapping.set_editor_property("action", action)
     mapping.set_editor_property("key", key)
     return mapping
+
+
+def make_modified_mapping(owner, action, key_name, modifier_names):
+    mapping = make_mapping(action, key_name)
+    modifiers = []
+    for name in modifier_names:
+        if name == "negate":
+            modifiers.append(unreal.new_object(unreal.InputModifierNegate, owner))
+        elif name == "deadzone":
+            modifiers.append(unreal.new_object(unreal.InputModifierDeadZone, owner))
+        elif name == "swizzle":
+            # Default order YXZ: the key's value goes to the Y axis.
+            modifiers.append(unreal.new_object(unreal.InputModifierSwizzleAxis, owner))
+        else:
+            raise ValueError("Unknown modifier %s" % name)
+    mapping.set_editor_property("modifiers", modifiers)
+    return mapping
+
+
+def create_on_foot_input(changed):
+    """Actions, mapping context and config for walking in the hub. Existing assets are left as they are."""
+    actions = {}
+    for name, value_type in ON_FOOT_ACTIONS.items():
+        action, created = get_or_create(name, ACTIONS_DIR, unreal.InputAction, unreal.InputAction_Factory())
+        if created:
+            action.set_editor_property("value_type", value_type)
+            changed.append(action)
+        actions[name] = action
+
+    imc, created = get_or_create("IMC_OnFoot", INPUT_DIR, unreal.InputMappingContext, unreal.InputMappingContext_Factory())
+    if created:
+        data = imc.get_editor_property("default_key_mappings")
+        data.set_editor_property("mappings", [make_modified_mapping(imc, actions[name], key, modifiers)
+                                              for name, key, modifiers in ON_FOOT_BINDINGS])
+        imc.set_editor_property("default_key_mappings", data)
+        changed.append(imc)
+
+    config, created = get_or_create("DA_OnFootInput", INPUT_DIR, unreal.OnFootInputConfig, unreal.DataAssetFactory())
+    if created:
+        config.set_editor_property("mapping_context", imc)
+        for property_name, action_name in ON_FOOT_CONFIG_ACTIONS.items():
+            config.set_editor_property(property_name, actions[action_name])
+        changed.append(config)
+
+    tuning, created = get_or_create("DA_AdventureHubTuning", ADVENTURE_DIR, unreal.AdventureHubTuningData, unreal.DataAssetFactory())
+    if created:
+        changed.append(tuning)
 
 
 def create_adventure_campaign(changed):
@@ -163,6 +251,7 @@ def main():
         changed.append(config)
 
     create_adventure_campaign(changed)
+    create_on_foot_input(changed)
 
     for asset in changed:
         eal.save_loaded_asset(asset, only_if_is_dirty=False)

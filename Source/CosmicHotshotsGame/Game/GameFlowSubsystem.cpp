@@ -32,6 +32,21 @@ TArray<const UCharacterDefinition*> UGameFlowSubsystem::DrawRivalCharacters(int3
 	return Pool;
 }
 
+void UGameFlowSubsystem::OpenAdventureHub(const UObject* WorldContext)
+{
+	const UWorld* World = WorldContext ? WorldContext->GetWorld() : nullptr;
+	const FSoftObjectPath& HubMap = GetDefault<UCosmicHotshotsSettings>()->AdventureHubMap;
+	if (!World || !HubMap.IsValid())
+	{
+		UE_LOG(LogCosmicRace, Warning, TEXT("FLOW adventure hub: no map set (Project Settings > Game > Cosmic Hotshots > Adventure Hub Map)."));
+		return;
+	}
+	// The race is over; the hub is not a race.
+	ClearRaceConfig();
+	UE_LOG(LogCosmicRace, Log, TEXT("FLOW adventure hub: opening %s"), *HubMap.GetLongPackageName());
+	UGameplayStatics::OpenLevel(World, FName(*HubMap.GetLongPackageName()));
+}
+
 bool UGameFlowSubsystem::ConsumeRaceSetupRequest()
 {
 	const bool bRequested = bRaceSetupRequested;

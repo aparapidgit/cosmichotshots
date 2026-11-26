@@ -101,8 +101,15 @@ public:
 	/** The single end-of-race event. Does nothing unless an Adventure race is running. */
 	void HandleRaceFinished(const FRaceResultData& Results);
 
+	/** Result of the last Adventure race (LevelIndex INDEX_NONE = none), for the results screen. */
+	const FAdventureRaceOutcome& GetLastOutcome() const { return LastOutcome; }
+
 	/** Result of the last Adventure race, for the hub's unlock feedback. Asking clears it. */
 	FAdventureRaceOutcome ConsumeLastOutcome();
+
+	/** Test helper (ch.Test.HubEnterLevel): the test has walked into its portal once in this run. */
+	bool HasTestEnteredPortal() const { return bTestEnteredPortal; }
+	void SetTestEnteredPortal() { bTestEnteredPortal = true; }
 
 private:
 	FString GetSlotName(int32 SlotIndex) const;
@@ -114,4 +121,5 @@ private:
 	int32 ActiveSlot = INDEX_NONE;
 	int32 CurrentLevelIndex = INDEX_NONE;
 	FAdventureRaceOutcome LastOutcome;
+	bool bTestEnteredPortal = false;
 };

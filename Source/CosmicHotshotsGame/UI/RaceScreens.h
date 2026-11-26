@@ -205,6 +205,9 @@ protected:
 private:
 	UPROPERTY(Transient)
 	FRaceResultData Results;
+
+	/** What each button does, by button index (the buttons differ between Single Race and Adventure). */
+	TArray<int32> ButtonActions;
 };
 
 /** Big text in the middle of the screen: the start countdown, GO, and FINISH with the place. */

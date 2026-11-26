@@ -56,6 +56,11 @@
 #   Single Race setup (3 rivals, 2 laps, Hard, no item boxes; "rivals:laps:difficulty:items", fixed draw of the rivals' characters):
 #                     -Map "/Game/Maps/MainMenu" -SkipMenus 0 -Countdown 3 -Seconds 170 -LogInterval 30 -TimeoutSeconds 520 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Test.AutoMenu SingleRace,ch.Test.AutoSelectCharacter 4,ch.Test.AutoSetup 3:2:2:0,ch.Race.AICharacterSeed 7"
 #                     (FLOW single race line with the setup; 4 RESULT lines with laps=2; no ITEM lines)
+#   Adventure (own save slots through ch.Adventure.SaveSlot; delete Saved/SaveGames/<name>_*.sav afterwards):
+#     Level by menu:  -Map "/Game/Maps/MainMenu" -SkipMenus 0 -Countdown 3 -Seconds 100 -LogInterval 30 -TimeoutSeconds 400 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Test.AutoMenu Adventure,ch.Adventure.SaveSlot TestAdv,ch.Race.Laps 1,ch.Test.AdventureNew 1,ch.Test.AdventureLevel 0"
+#                     (ADVENTURE lines: start, WON / not won, unlocked level, opened section; ch.Test.AdventureForcePlace 2 = a lost race; ch.Adventure.UnlockAll 1)
+#     Hub loop:       same, plus "ch.Test.AdventureHub 1,ch.Test.HubEnterLevel 0,ch.Test.AutoReturnToHub 1,ch.Test.WallQuitTime 90"
+#                     (HUB built / HUB entered lines before and after the race; the hub has no vehicle, so it quits on ch.Test.WallQuitTime)
 #   RACE_SETUP prints the tuning's default lap count; RACE_START (first physics step) prints the laps the race really has.
 #   Menus and pause need a window, so they are not run by this script: start UnrealEditor.exe <project> <map> -game -windowed with
 #   -ExecCmds "...,ch.Test.MenuKeys 5@P/6@Down/6.5@Enter,ch.Test.WallScreenshotTime 9,ch.Test.WallQuitTime 11" (UTestDriverSubsystem:

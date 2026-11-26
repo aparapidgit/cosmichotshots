@@ -1,5 +1,6 @@
 #include "UI/RaceScreens.h"
 
+#include "Adventure/AdventureSubsystem.h"
 #include "UI/MenuScreens.h"
 #include "Blueprint/WidgetTree.h"
 #include "Character/CharacterDefinition.h"
@@ -48,9 +49,10 @@ namespace
 	constexpr int32 DefaultOpponents = 7;
 
 	// Buttons of the results screen.
-	constexpr int32 RestartButton = 0;
-	constexpr int32 ChangeSetupButton = 1;
-	constexpr int32 ResultsMainMenuButton = 2;
+	constexpr int32 ResultsRestartAction = 0;
+	constexpr int32 ResultsChangeSetupAction = 1;
+	constexpr int32 ResultsMainMenuAction = 2;
+	constexpr int32 ResultsHubAction = 3;
 
 	UGameFlowSubsystem* GetFlow(const UObject* WorldContext)
 	{
@@ -443,33 +445,66 @@ void URaceResultsWidget::BuildScreen()
 			Entry.bHuman ? ScreenOwnRowColour : FLinearColor::White);
 	}
 
+	ButtonActions.Reset();
+	const UAdventureSubsystem* Adventure = UAdventureSubsystem::Get(this);
+	if (Adventure && Adventure->GetCurrentLevel() != INDEX_NONE)
+	{
+		// An Adventure race: a win leads back to the hub (where the next portal is open now);
+		// otherwise the player tries again or walks back.
+		if (Adventure->GetLastOutcome().bWon)
+		{
+			AddLine(LOCTEXT("AdventureWon", "You won the level!"), ScreenOwnRowColour);
+			AddButton(LOCTEXT("ResultsContinue", "Continue"));
+			ButtonActions.Add(ResultsHubAction);
+		}
+		else
+		{
+			AddLine(LOCTEXT("AdventureNotWon", "Finish 1st to open the next level."), ScreenDimColour);
+			AddButton(LOCTEXT("ResultsRetry", "Retry"));
+			ButtonActions.Add(ResultsRestartAction);
+			AddButton(LOCTEXT("ResultsReturnToHub", "Return to hub"));
+			ButtonActions.Add(ResultsHubAction);
+		}
+		return;
+	}
+
 	AddButton(LOCTEXT("Restart", "Restart"));
+	ButtonActions.Add(ResultsRestartAction);
 	AddButton(LOCTEXT("ChangeSetup", "Change setup"));
+	ButtonActions.Add(ResultsChangeSetupAction);
 	AddButton(LOCTEXT("ResultsMainMenu", "Main menu"));
+	ButtonActions.Add(ResultsMainMenuAction);
 }
 
 void URaceResultsWidget::HandleButton(int32 ButtonIndex)
 {
 	UGameFlowSubsystem* Flow = GetFlow(this);
-	if (!Flow)
+	if (!Flow || !ButtonActions.IsValidIndex(ButtonIndex))
 	{
 		return;
 	}
 
 	HideScreen();
-	if (ButtonIndex == ResultsMainMenuButton)
+	switch (ButtonActions[ButtonIndex])
 	{
+	case ResultsMainMenuAction:
 		Flow->OpenMainMenu(this);
-		return;
-	}
-	if (ButtonIndex == ChangeSetupButton)
-	{
+		break;
+
+	case ResultsChangeSetupAction:
 		// Back to the main menu map, straight into the race setup with the last choices.
 		Flow->OpenMainMenu(this, /*bOpenRaceSetup=*/true);
-		return;
+		break;
+
+	case ResultsHubAction:
+		Flow->OpenAdventureHub(this);
+		break;
+
+	default:
+		// Restart / Retry: the same setup again (same track, same rivals).
+		Flow->StartRace(this);
+		break;
 	}
-	// Restart: the same setup again (same track, same rivals).
-	Flow->StartRace(this);
 }
 
 // --- URaceOverlayWidget

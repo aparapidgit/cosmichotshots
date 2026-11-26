@@ -4,6 +4,7 @@
 // The vehicle's own test helpers (ch.Test.ScreenshotTime, ch.Test.AutoQuitTime) count simulation time,
 // which stands still in the pause menu; menu and pause tests use these instead:
 //   ch.Test.MenuKeys "1.5@Left:Down/4@Enter"   keys pressed through Slate, like a player would
+//                                              ("W*90" holds a key for 90 frames, e.g. to walk)
 //   ch.Test.ExecAt "6@ch.Adventure.UnlockAll 1" a console command typed at that moment
 //   ch.Test.WallScreenshotTime 6               one screenshot (with UI)
 //   ch.Test.WallQuitTime 8                     quit
@@ -38,6 +39,9 @@ private:
 	/** Keys still to press, in order, and the key that is down in this frame. */
 	TArray<FString> PendingKeys;
 	FString HeldKey;
+
+	/** Frames the held key still stays down ("W*90" holds W for 90 frames; a plain key is one frame). */
+	int32 HeldFramesRemaining = 0;
 
 	bool bScreenshotTaken = false;
 

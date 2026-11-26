@@ -95,6 +95,9 @@ public:
 	 */
 	static TArray<const UCharacterDefinition*> DrawRivalCharacters(int32 Count, const TArray<const UCharacterDefinition*>& Taken, int32& OutSeed);
 
+	/** Opens the Adventure hub map (after the Adventure menu, and when the player comes back from a race). */
+	void OpenAdventureHub(const UObject* WorldContext);
+
 	/** True once after OpenMainMenu(..., true): the main menu asks this when it starts, and then shows the race setup. */
 	bool ConsumeRaceSetupRequest();
 

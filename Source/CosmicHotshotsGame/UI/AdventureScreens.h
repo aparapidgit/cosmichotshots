@@ -1,7 +1,8 @@
 // Adventure Mode menu screens: Start new / Load, the save slots, and a plain list of the levels.
 //
-// The level list is a TEMPORARY stand-in for the hub map (it starts the same races the portals will);
-// it stays useful afterwards as a quick way into a level. The screens hold no progress: they ask
+// A chosen slot leads into the hub map. The level list starts the same races as the hub's portals:
+// it is the shortcut in the hub's pause menu, and stands in for the hub when the project has no hub map.
+// The screens hold no progress: they ask
 // UAdventureSubsystem what is won and open, and tell it which slot and which level the player picked.
 
 #pragma once
@@ -42,7 +43,7 @@ private:
 	/** Writes every slot's state on its button (a slot may have been filled since the screen was built). */
 	void RefreshSlots();
 
-	/** The slot is the active game now: on to the levels. */
+	/** The slot is the active game now: on to the hub. */
 	void OpenLevels();
 
 	UPROPERTY(Transient)

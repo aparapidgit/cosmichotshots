@@ -104,7 +104,16 @@ void AMenuPlayerController::SetUpMenu()
 			UE_LOG(LogCosmicRace, Log, TEXT("FLOW main menu: auto Adventure slot %d level %d (unlocked=%d, section open=%d)"), SlotIndex, LevelIndex,
 				Adventure->IsLevelUnlocked(LevelIndex) ? 1 : 0,
 				Adventure->GetCampaign() && Adventure->IsSectionOpen(Adventure->GetCampaign()->GetSectionOfLevel(LevelIndex)) ? 1 : 0);
-			bAutoAdventureRaceStarted = Adventure->StartLevel(this, LevelIndex);
+			UGameFlowSubsystem* HubFlow = UGameFlowSubsystem::Get(this);
+			if (CosmicHotshots::RaceCVars::AdventureHub.GetValueOnGameThread() != 0 && Adventure->HasActiveGame() && HubFlow)
+			{
+				HubFlow->OpenAdventureHub(this);
+				bAutoAdventureRaceStarted = true;
+			}
+			else
+			{
+				bAutoAdventureRaceStarted = Adventure->StartLevel(this, LevelIndex);
+			}
 		}
 		return;
 	}

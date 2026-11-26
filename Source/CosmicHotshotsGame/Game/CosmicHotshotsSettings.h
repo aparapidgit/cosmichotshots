@@ -78,6 +78,18 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Adventure")
 	TSoftObjectPtr<class UAdventureCampaignDefinition> AdventureCampaign;
 
+	/** Map of the Adventure hub: where the player walks between the portals. */
+	UPROPERTY(Config, EditAnywhere, Category = "Adventure", meta = (AllowedClasses = "/Script/Engine.World"))
+	FSoftObjectPath AdventureHubMap;
+
+	/** Layout, portals and on-foot numbers of the placeholder hub. Empty = class defaults of UAdventureHubTuningData. */
+	UPROPERTY(Config, EditAnywhere, Category = "Adventure")
+	TSoftObjectPtr<class UAdventureHubTuningData> AdventureHubTuning;
+
+	/** Input actions and bindings for walking in the Adventure hub. */
+	UPROPERTY(Config, EditAnywhere, Category = "Input")
+	TSoftObjectPtr<class UOnFootInputConfig> OnFootInput;
+
 	/** Which items the item boxes give. Empty = boxes give nothing. */
 	UPROPERTY(Config, EditAnywhere, Category = "Items")
 	TSoftObjectPtr<UItemLootTable> ItemLootTable;

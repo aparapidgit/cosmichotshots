@@ -3,6 +3,8 @@
 #include "Adventure/AdventureDefinitions.h"
 #include "Adventure/AdventureSubsystem.h"
 #include "Components/TextBlock.h"
+#include "Game/CosmicHotshotsSettings.h"
+#include "Game/GameFlowSubsystem.h"
 #include "UI/MenuScreens.h"
 
 #define LOCTEXT_NAMESPACE "AdventureScreens"
@@ -142,6 +144,14 @@ void UAdventureSlotSelectWidget::HandleOverwriteChoice(int32 AnswerIndex)
 
 void UAdventureSlotSelectWidget::OpenLevels()
 {
+	// Into the hub. Without a hub map in the project settings, the level list stands in for it.
+	UGameFlowSubsystem* Flow = UGameFlowSubsystem::Get(this);
+	if (Flow && GetDefault<UCosmicHotshotsSettings>()->AdventureHubMap.IsValid())
+	{
+		HideScreen();
+		Flow->OpenAdventureHub(this);
+		return;
+	}
 	OpenChildScreen(CreateScreen<UAdventureLevelListWidget>());
 }
 
@@ -150,7 +160,7 @@ void UAdventureSlotSelectWidget::OpenLevels()
 void UAdventureLevelListWidget::BuildScreen()
 {
 	AddTitle(LOCTEXT("LevelsTitle", "ADVENTURE LEVELS"));
-	AddLine(LOCTEXT("LevelsTemporary", "Temporary list: the hub map with portals takes its place."), AdventureDimColour);
+	AddLine(LOCTEXT("LevelsShortcut", "Shortcut: the same races as the portals in the hub."), AdventureDimColour);
 
 	const UAdventureSubsystem* Adventure = UAdventureSubsystem::Get(this);
 	const UAdventureCampaignDefinition* Campaign = Adventure ? Adventure->GetCampaign() : nullptr;

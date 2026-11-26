@@ -266,6 +266,16 @@ void ARacePlayerController::HandleRaceFinished(const FRaceResultData& Results)
 	if (UAdventureSubsystem* Adventure = UAdventureSubsystem::Get(this))
 	{
 		Adventure->HandleRaceFinished(Results);
+
+#if !UE_BUILD_SHIPPING
+		// Test helper (ch.Test.AutoReturnToHub): what "Continue" / "Return to hub" on the results screen does.
+		UGameFlowSubsystem* HubFlow = GetGameInstance() ? GetGameInstance()->GetSubsystem<UGameFlowSubsystem>() : nullptr;
+		if (CosmicHotshots::RaceCVars::AutoReturnToHub.GetValueOnGameThread() != 0 && Adventure->GetCurrentLevel() != INDEX_NONE && HubFlow)
+		{
+			HubFlow->OpenAdventureHub(this);
+			return;
+		}
+#endif
 	}
 
 	if (!FApp::CanEverRender())
