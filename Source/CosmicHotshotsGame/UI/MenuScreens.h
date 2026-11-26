@@ -128,6 +128,25 @@ protected:
 	virtual void HandleOptionChanged(int32 ButtonIndex, int32 Value) override;
 };
 
+/**
+ * Options > Controls: a read-only overview of every action and the buttons and keys bound to it, grouped by
+ * where it is used (driving, system, on foot). It reads the bindings from the input mapping contexts, so a
+ * new action or binding in the assets shows up here by itself. Remapping is not built yet.
+ */
+UCLASS()
+class COSMICHOTSHOTSGAME_API UControlsOptionsWidget : public URaceScreenWidget
+{
+	GENERATED_BODY()
+
+protected:
+	virtual void BuildScreen() override;
+	virtual void HandleButton(int32 ButtonIndex) override;
+
+private:
+	/** One group: its name, then a line per action of the mapping context with its gamepad and keyboard bindings. */
+	void AddBindingGroup(const FText& GroupName, const class UInputMappingContext* MappingContext);
+};
+
 /** Pause menu of a race: Resume, Options, Restart, Main menu. The game is paused while it is open. */
 UCLASS()
 class COSMICHOTSHOTSGAME_API UPauseMenuWidget : public URaceScreenWidget

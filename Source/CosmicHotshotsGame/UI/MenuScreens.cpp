@@ -3,6 +3,11 @@
 #include "CosmicHotshotsGame.h"
 #include "AI/AIDifficultyData.h"
 #include "Camera/CameraTuningData.h"
+#include "Input/DrivingInputConfig.h"
+#include "Input/OnFootInputConfig.h"
+#include "Input/SystemInputConfig.h"
+#include "InputAction.h"
+#include "InputMappingContext.h"
 #include "Player/PlayerSettingsSubsystem.h"
 #include "UI/AdventureScreens.h"
 #include "Game/CosmicHotshotsSettings.h"
@@ -27,6 +32,13 @@ namespace
 	// Buttons of the Options screen.
 	constexpr int32 OptionsCameraButton = 0;
 	constexpr int32 OptionsHudButton = 1;
+	constexpr int32 OptionsControlsButton = 2;
+
+	/** Input action assets are named "IA_<Action>": the overview shows the part after this prefix. */
+	const TCHAR* const InputActionNamePrefix = TEXT("IA_");
+
+	const FLinearColor ControlsGroupColour(1.f, 0.85f, 0.2f, 1.f);
+	const FLinearColor ControlsNoteColour(0.7f, 0.7f, 0.7f, 1.f);
 
 	// Buttons of the pause menu, top to bottom.
 	constexpr int32 PauseResumeButton = 0;
@@ -208,6 +220,7 @@ void UOptionsWidget::BuildScreen()
 	AddTitle(LOCTEXT("OptionsTitle", "OPTIONS"));
 	AddButton(LOCTEXT("OptionsCamera", "Camera"));
 	AddButton(LOCTEXT("OptionsHud", "HUD"));
+	AddButton(LOCTEXT("OptionsControls", "Controls"));
 	AddButton(LOCTEXT("OptionsBack", "Back"));
 }
 
@@ -220,6 +233,10 @@ void UOptionsWidget::HandleButton(int32 ButtonIndex)
 	else if (ButtonIndex == OptionsHudButton)
 	{
 		OpenChildScreen(CreateScreen<UHudOptionsWidget>());
+	}
+	else if (ButtonIndex == OptionsControlsButton)
+	{
+		OpenChildScreen(CreateScreen<UControlsOptionsWidget>());
 	}
 	else
 	{
@@ -339,6 +356,68 @@ void UHudOptionsWidget::HandleOptionChanged(int32 ButtonIndex, int32 Value)
 void UHudOptionsWidget::HandleButton(int32 ButtonIndex)
 {
 	// The only plain button is Back.
+	GoBack();
+}
+
+// --- UControlsOptionsWidget
+
+void UControlsOptionsWidget::BuildScreen()
+{
+	AddTitle(LOCTEXT("ControlsTitle", "CONTROLS"));
+
+	const UCosmicHotshotsSettings* Settings = GetDefault<UCosmicHotshotsSettings>();
+	const UDrivingInputConfig* Driving = Settings->DrivingInput.LoadSynchronous();
+	const USystemInputConfig* System = Settings->SystemInput.LoadSynchronous();
+	const UOnFootInputConfig* OnFoot = Settings->OnFootInput.LoadSynchronous();
+	AddBindingGroup(LOCTEXT("ControlsDriving", "Driving"), Driving ? Driving->MappingContext.Get() : nullptr);
+	AddBindingGroup(LOCTEXT("ControlsSystem", "System"), System ? System->MappingContext.Get() : nullptr);
+	AddBindingGroup(LOCTEXT("ControlsOnFoot", "On foot (Adventure hub)"), OnFoot ? OnFoot->MappingContext.Get() : nullptr);
+
+	AddLine(LOCTEXT("ControlsMenus", "Menus:   D-pad or stick to move,  A / Enter to accept,  B / Escape to go back"), ControlsNoteColour);
+	AddLine(LOCTEXT("ControlsNote", "Changing the bindings comes later."), ControlsNoteColour);
+	AddButton(LOCTEXT("ControlsBack", "Back"));
+}
+
+void UControlsOptionsWidget::AddBindingGroup(const FText& GroupName, const UInputMappingContext* MappingContext)
+{
+	if (!MappingContext)
+	{
+		return;
+	}
+	AddLine(GroupName, ControlsGroupColour);
+
+	// The mapping context lists one entry per binding: gather them per action, in the order the actions first appear.
+	TArray<const UInputAction*> Actions;
+	TMap<const UInputAction*, FString> GamepadKeys;
+	TMap<const UInputAction*, FString> KeyboardKeys;
+	for (const FEnhancedActionKeyMapping& Mapping : MappingContext->GetMappings())
+	{
+		const UInputAction* Action = Mapping.Action;
+		if (!Action)
+		{
+			continue;
+		}
+		Actions.AddUnique(Action);
+		FString& Keys = (Mapping.Key.IsGamepadKey() ? GamepadKeys : KeyboardKeys).FindOrAdd(Action);
+		Keys += (Keys.IsEmpty() ? TEXT("") : TEXT(", ")) + Mapping.Key.GetDisplayName().ToString();
+	}
+
+	for (const UInputAction* Action : Actions)
+	{
+		FString ActionName = Action->GetName();
+		ActionName.RemoveFromStart(InputActionNamePrefix);
+		const FString* Gamepad = GamepadKeys.Find(Action);
+		const FString* Keyboard = KeyboardKeys.Find(Action);
+		AddLine(FText::Format(LOCTEXT("ControlsLine", "{0}:   {1}   |   {2}"),
+			FText::FromString(FName::NameToDisplayString(ActionName, /*bIsBool=*/false)),
+			Gamepad ? FText::FromString(*Gamepad) : LOCTEXT("ControlsNone", "-"),
+			Keyboard ? FText::FromString(*Keyboard) : LOCTEXT("ControlsNone", "-")));
+	}
+}
+
+void UControlsOptionsWidget::HandleButton(int32 ButtonIndex)
+{
+	// The only button is Back.
 	GoBack();
 }
 
