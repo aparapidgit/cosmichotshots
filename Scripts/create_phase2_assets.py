@@ -42,6 +42,7 @@ PASSIVE_DESCRIPTIONS = {
 }
 
 # (asset, display name, values that differ from the class defaults of UAIDifficultyData). Placeholders to tune.
+# Only used when an asset is first created: the current values are set by update_ai_difficulty_assets.py (run it afterwards).
 AI_DIFFICULTIES = [
     ("DA_AIDifficulty_Easy", "Easy", {
         "top_speed_factor": 0.85, "corner_acceleration": 1300.0, "planned_braking": 1600.0,

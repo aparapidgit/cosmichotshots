@@ -333,8 +333,9 @@ void ARaceGameMode::SpawnAIOpponents()
 		{
 			Vehicle->SetCharacter(Available[Index % Available.Num()]);
 		}
-		// The grid slot is the seed: the same slot always gets the same driver.
-		Driver->Configure(Difficulty, Slot);
+		// The grid slot and the race's own seed make the driver: the same race setup always gives the same
+		// drivers, and another race puts different ones on the same slots.
+		Driver->Configure(Difficulty, bHasConfig ? static_cast<int32>(HashCombineFast(::GetTypeHash(Flow->GetRaceConfig().AIDriverSeed), ::GetTypeHash(Slot))) : Slot);
 		Driver->Possess(Vehicle);
 	}
 }

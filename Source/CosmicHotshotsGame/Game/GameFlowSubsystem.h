@@ -56,6 +56,10 @@ struct FRaceSessionConfig
 	UPROPERTY(BlueprintReadWrite, Category = "Race")
 	TArray<TObjectPtr<const UCharacterDefinition>> AICharacters;
 
+	/** Mixed into every computer driver's seed, so the same grid slot is not the same driver in every race. */
+	UPROPERTY(BlueprintReadWrite, Category = "Race")
+	int32 AIDriverSeed = 0;
+
 	/** Index into the project's AI difficulties. Negative = the project default. */
 	UPROPERTY(BlueprintReadWrite, Category = "Race")
 	int32 AIDifficulty = -1;

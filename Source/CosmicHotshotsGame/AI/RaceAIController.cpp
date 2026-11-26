@@ -1,6 +1,7 @@
 #include "AI/RaceAIController.h"
 
 #include "AI/AIDifficultyData.h"
+#include "CosmicHotshotsGame.h"
 #include "DrawDebugHelpers.h"
 #include "EngineUtils.h"
 #include "Item/ItemBox.h"
@@ -29,13 +30,22 @@ namespace
 		TEXT("ch.Debug.AI"), 0,
 		TEXT("1 = draw every computer driver's aim point, target speed, state and rubber-band factor."), ECVF_Cheat);
 
+	TAutoConsoleVariable<float> CVarAILog(
+		TEXT("ch.Debug.AILog"), 0.f,
+		TEXT("Seconds between AI_STEP log lines of every computer driver (line, aim, wall gap, buttons). 0 = off."), ECVF_Cheat);
+
 	const FName RubberBandSource(TEXT("AI.RubberBand"));
 
 	constexpr float AIKmhToCmPerSecond = 100000.f / 3600.f;
 	constexpr float AICmPerSecondToKmh = 1.f / AIKmhToCmPerSecond;
 
-	/** The car's centre stays this far (cm) from the walls: half a car width plus a safety margin. */
-	constexpr float AIWallMargin = 250.f;
+	// The steering-by-speed curve is sampled at this many points over speed / top speed = 0 .. this range.
+	constexpr int32 AISteeringSamples = 16;
+	constexpr float AISteeringSampleRange = 1.5f;
+
+	// Limits for values bent by a driver's personality.
+	constexpr float MinTopSpeedFactor = 0.3f;
+	constexpr float MinBoostStartCharge = 0.1f;
 
 	// Debug drawing only.
 	constexpr float AIDebugPointSize = 14.f;
@@ -63,9 +73,18 @@ void ARaceAIController::Configure(const UAIDifficultyData* InDifficulty, int32 I
 {
 	Difficulty = InDifficulty;
 
-	// The same seed always gives the same driver: nothing random happens while driving.
-	FRandomStream Stream(InSeed);
-	PersonalLine = Stream.FRandRange(-1.f, 1.f);
+	// The same seed always gives the same driver: nothing random happens while driving (mistakes are
+	// rolled from MistakeSeed, the lap and the place on the track). The order of the draws is fixed.
+	// The seed is scrambled first: neighbouring seeds (grid slots 1, 2, 3 ...) would otherwise give neighbouring drivers.
+	FRandomStream Stream(static_cast<int32>(MurmurFinalize32(static_cast<uint32>(InSeed))));
+	Personality.LineBias = Stream.FRandRange(-1.f, 1.f);
+	Personality.Courage = Stream.FRandRange(-1.f, 1.f);
+	Personality.Pace = Stream.FRand();
+	Personality.WallHugDraw = Stream.FRand();
+	Personality.WallCaution = Stream.FRand();
+	Personality.BoostPatience = Stream.FRandRange(-1.f, 1.f);
+	Personality.MistakeSeed = static_cast<int32>(Stream.GetUnsignedInt());
+	Personality.Aggression = Stream.FRand();
 }
 
 const UAIDifficultyData* ARaceAIController::GetDifficulty() const
@@ -91,6 +110,17 @@ void ARaceAIController::TakeVehicle(ARaceVehicle* Vehicle, bool bInOnlyAfterFini
 	bOnlyAfterFinish = bInOnlyAfterFinish;
 	bTookOver = false;
 	RacerId = INDEX_NONE;
+	VehicleName = GetNameSafe(Vehicle);
+	LapStats = FLapStats();
+	StatsLap = INDEX_NONE;
+
+	// Who drives this car (not for the stand-by driver of a human's car: it may never drive).
+	if (Vehicle && !bInOnlyAfterFinish)
+	{
+		UE_LOG(LogCosmicRace, Log, TEXT("AI_DRIVER %s line=%.2f courage=%.2f pace=%.2f wallHug=%.2f wallCaution=%.2f boostPatience=%.2f aggression=%.2f"),
+			*VehicleName, Personality.LineBias, Personality.Courage, Personality.Pace, Personality.WallHugDraw, Personality.WallCaution, Personality.BoostPatience,
+			Personality.Aggression);
+	}
 
 	Track = ATrackSplineActor::FindTable(GetWorld());
 
@@ -112,8 +142,17 @@ void ARaceAIController::TakeVehicle(ARaceVehicle* Vehicle, bool bInOnlyAfterFini
 			Spot.LateralOffset = Projection.LateralOffset;
 		}
 	}
+	SteeringBySpeedSamples.Reset();
 	if (Vehicle)
 	{
+		if (const UVehicleTuningData* Tuning = Vehicle->GetStats()->GetTuning())
+		{
+			const FRichCurve* SteeringCurve = Tuning->SteeringBySpeed.GetRichCurveConst();
+			for (int32 Index = 0; Index < AISteeringSamples; ++Index)
+			{
+				SteeringBySpeedSamples.Add(SteeringCurve->Eval(AISteeringSampleRange * Index / (AISteeringSamples - 1), 1.f));
+			}
+		}
 		Vehicle->GetHoverMovement()->SetStepInputSource(this);
 	}
 }
@@ -174,7 +213,7 @@ void ARaceAIController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
-FRaceAIDriverParams ARaceAIController::BuildParams() const
+FRaceAIDriverParams ARaceAIController::BuildParams(const FVehicleStepInputContext& Context) const
 {
 	const UAIDifficultyData* Data = GetDifficulty();
 	const ARaceVehicle* Vehicle = DrivenVehicle.Get();
@@ -187,25 +226,56 @@ FRaceAIDriverParams ARaceAIController::BuildParams() const
 		if (const UVehicleTuningData* Tuning = Vehicle->GetStats()->GetTuning())
 		{
 			Params.DriftMinSpeed = Tuning->DriftMinSpeedKmh * AIKmhToCmPerSecond;
+			Params.BoostTopSpeed = Tuning->BoostMaxSpeedKmh * AIKmhToCmPerSecond;
+			Params.DriftCriticalSlipAngle = Tuning->DriftCriticalSlipAngle;
+			Params.BodyHalfWidth = Tuning->BodySize.Y * 0.5f;
+			Params.DriftMinTurn = Tuning->DriftMinTurn;
+			Params.DriftYawMultiplier = Tuning->DriftYawMultiplier;
+
+			// Full-lock turn rate at this speed: the same curve lookup the car's own physics does.
+			float SteeringBySpeed = 1.f;
+			if (SteeringBySpeedSamples.Num() == AISteeringSamples && Params.TopSpeed > UE_KINDA_SMALL_NUMBER)
+			{
+				const float ForwardSpeed = FMath::Abs(static_cast<float>(FVector::DotProduct(Context.Velocity, Context.Rotation.GetForwardVector())));
+				const float Position = FMath::Clamp(ForwardSpeed / Params.TopSpeed / AISteeringSampleRange, 0.f, 1.f) * (AISteeringSamples - 1);
+				const int32 Index = FMath::Min(FMath::FloorToInt32(Position), AISteeringSamples - 2);
+				SteeringBySpeed = FMath::Lerp(SteeringBySpeedSamples[Index], SteeringBySpeedSamples[Index + 1], Position - Index);
+			}
+			Params.MaxYawRate = FMath::DegreesToRadians(Tuning->MaxYawRate) * Vehicle->GetStats()->GetModifiers().Steering * SteeringBySpeed;
 		}
 	}
 	if (Track.IsValid())
 	{
-		Params.UsableHalfWidth = FMath::Max(Track->GetHalfWidth() - AIWallMargin, 0.f);
+		Params.TrackHalfWidth = Track->GetHalfWidth();
+		Params.UsableHalfWidth = FMath::Max(Track->GetHalfWidth() - Data->WallMargin, 0.f);
 	}
 
-	Params.TopSpeedFactor = Data->TopSpeedFactor;
-	Params.CornerAcceleration = Data->CornerAcceleration;
-	Params.PlannedBraking = Data->PlannedBraking;
+	// Difficulty, bent by this driver's personality.
+	const float Courage = 1.f + Personality.Courage * Data->CornerCourageSpread;
+	Params.TopSpeedFactor = FMath::Max(Data->TopSpeedFactor - Personality.Pace * Data->TopSpeedSpread, MinTopSpeedFactor);
+	Params.CornerAcceleration = Data->CornerAcceleration * Courage;
+	Params.PlannedBraking = Data->PlannedBraking * Courage;
 	Params.ApexOffset = Data->ApexOffset;
 	Params.ApexFullCurvature = Data->ApexFullCurvature;
-	Params.PersonalOffset = PersonalLine * Data->PersonalLineSpread;
+	Params.PersonalOffset = Personality.LineBias * Data->PersonalLineSpread;
 	Params.LineChangeSpeed = Data->LineChangeSpeed;
 	Params.SteeringSpeed = Data->SteeringSpeed;
 	Params.bUseDrift = Data->bUseDrift;
 	Params.DriftMinCurvature = Data->DriftMinCurvature;
+	Params.DriftMaxSlipAngle = Data->DriftMaxSlipAngle;
+	Params.BoostMaxCurvature = Data->BoostMaxCurvature;
+	const bool bHugsWalls = Data->WallHugClearance > 0.f && Personality.WallHugDraw < Data->WallHugShare;
+	Params.WallHugClearance = bHugsWalls ? Data->WallHugClearance + Personality.WallCaution * Data->WallHugClearanceSpread : 0.f;
+	Params.DefendShift = Data->DefendMaxShift * Personality.Aggression;
+	Params.InsidePassShare = 1.f - Personality.Aggression;
+	Params.OvertakeBoostCharge = Data->OvertakeBoostCharge;
+	Params.MistakeChance = Data->MistakeChance;
+	Params.MistakeLiftTime = Data->MistakeLiftTime;
+	Params.MistakeWideOffset = Data->MistakeWideOffset;
+	Params.MistakeSeed = Personality.MistakeSeed;
+	Params.ItemBoxMaxSidestep = Data->ItemBoxMaxSidestep;
 	Params.bUseBoost = Data->bUseBoost;
-	Params.BoostMinCharge = Data->BoostMinCharge;
+	Params.BoostMinCharge = FMath::Clamp(Data->BoostMinCharge + Personality.BoostPatience * Data->BoostChargeSpread, MinBoostStartCharge, 1.f);
 	return Params;
 }
 
@@ -246,6 +316,7 @@ FVehicleInputState ARaceAIController::GetStepInput(const FVehicleStepInputContex
 	}
 
 	UpdateRubberBand(Context);
+	UpdateLapStats(Context);
 
 	FRaceAIDriverInput Input;
 	Input.Location = Context.Location;
@@ -254,7 +325,19 @@ FVehicleInputState ARaceAIController::GetStepInput(const FVehicleStepInputContex
 	Input.DeltaTime = Context.DeltaTime;
 	Input.ElapsedSimTime = Context.ElapsedSimTime;
 	Input.BoostCharge = Context.State ? Context.State->DriftBoost.BoostCharge : 0.f;
+	Input.bBoosting = Context.State && Context.State->DriftBoost.bBoosting;
+	Input.DriftDirection = Context.State && Context.State->DriftBoost.bDrifting ? Context.State->DriftBoost.DriftDirection : 0.f;
+	if (Context.State)
+	{
+		Input.WallClearanceLeft = Context.State->WallProbes[0].Clearance;
+		Input.WallClearanceRight = Context.State->WallProbes[1].Clearance;
+	}
 	Input.Others = OtherCars;
+	if (const URaceTrackerComponent* RaceTracker = Tracker.Get())
+	{
+		const FRaceStepView& Race = RaceTracker->GetViewForStep(Context.SimTime);
+		Input.Lap = Race.Racers.IsValidIndex(RacerId) ? Race.Racers[RacerId].LapsCompleted : 0;
+	}
 	// Only boxes that can be collected are worth lining up for (state after the previous step).
 	if (!ItemSystem.IsValid())
 	{
@@ -271,7 +354,21 @@ FVehicleInputState ARaceAIController::GetStepInput(const FVehicleStepInputContex
 	}
 	Input.Boxes = BoxSpots;
 
-	return FRaceAIDriverSim::Step(*Track, BuildParams(), Input, DriverState);
+	const FVehicleInputState Out = FRaceAIDriverSim::Step(*Track, BuildParams(Context), Input, DriverState);
+
+#if !UE_BUILD_SHIPPING
+	const float LogInterval = CVarAILog.GetValueOnAnyThread();
+	if (LogInterval > 0.f && Context.ElapsedSimTime >= NextStepLogTime)
+	{
+		NextStepLogTime = Context.ElapsedSimTime + LogInterval;
+		UE_LOG(LogCosmicRace, Log, TEXT("AI_STEP %s t=%.3f dist=%.0f lateral=%.0f target=%.0f lineError=%.0f hug=%d kmh=%.1f targetKmh=%.1f steer=%.2f yawRate=%.1f slip=%.1f throttle=%.2f brake=%.2f drift=%d boost=%d charge=%.3f wallL=%.0f wallR=%.0f mode=%d"),
+			*VehicleName, Context.ElapsedSimTime, DriverState.TrackDistance, DriverState.LateralOffset, DriverState.TargetLateral, DriverState.LineError,
+			DriverState.bHuggingWall ? 1 : 0, Context.Velocity.Size() * AICmPerSecondToKmh, DriverState.TargetSpeed * AICmPerSecondToKmh,
+			Out.Steer, Context.State ? Context.State->YawRate : 0.f, Context.State ? Context.State->SlipAngle : 0.f, Out.Throttle, Out.Brake, Out.bDriftRight ? 1 : (Out.bDriftLeft ? -1 : 0), Out.bBoost ? 1 : 0, Input.BoostCharge,
+			Input.WallClearanceLeft, Input.WallClearanceRight, static_cast<int32>(DriverState.Mode));
+	}
+#endif
+	return Out;
 }
 
 void ARaceAIController::UpdateRubberBand(const FVehicleStepInputContext& Context)
@@ -330,6 +427,58 @@ void ARaceAIController::UpdateRubberBand(const FVehicleStepInputContext& Context
 	Context.Modifiers->AddOrRefresh(Spec);
 }
 
+void ARaceAIController::UpdateLapStats(const FVehicleStepInputContext& Context)
+{
+#if !UE_BUILD_SHIPPING
+	const URaceTrackerComponent* RaceTracker = Tracker.Get();
+	if (!RaceTracker || !Context.State)
+	{
+		return;
+	}
+	const FRaceStepView& Race = RaceTracker->GetViewForStep(Context.SimTime);
+	if (!Race.Racers.IsValidIndex(RacerId) || !Race.Racers[RacerId].bStarted)
+	{
+		return;
+	}
+
+	// A lap was completed in the previous step: report what the car did in it.
+	const int32 Lap = Race.Racers[RacerId].LapsCompleted;
+	if (StatsLap != INDEX_NONE && Lap != StatsLap)
+	{
+		UE_LOG(LogCosmicRace, Log, TEXT("AI_LAP %s t=%.4f lap=%d boost=%.2fs boosts=%d drift=%.2fs closePass=%.2fs touches=%d mistakes=%d overslides=%d lineError=%.0f max=%.0f"),
+			*VehicleName, Race.RaceTime, Lap, LapStats.BoostSeconds, LapStats.Boosts, LapStats.DriftSeconds, LapStats.ClosePassSeconds, LapStats.Touches, LapStats.Mistakes,
+			LapStats.Overslides, LapStats.LineErrorSum / FMath::Max(LapStats.Seconds, UE_SMALL_NUMBER), LapStats.MaxLineError);
+		LapStats = FLapStats();
+	}
+
+	const FDriftBoostState& DriftBoost = Context.State->DriftBoost;
+	if (StatsLap == INDEX_NONE)
+	{
+		StatsBoostCount = DriftBoost.BoostCount;
+		StatsLockout = DriftBoost.ClosePassLockoutRemaining;
+		StatsOverslide = DriftBoost.OverslideTimeRemaining;
+	}
+	StatsLap = Lap;
+
+	LapStats.BoostSeconds += DriftBoost.bBoosting ? Context.DeltaTime : 0.f;
+	LapStats.DriftSeconds += DriftBoost.bDrifting ? Context.DeltaTime : 0.f;
+	LapStats.ClosePassSeconds += DriftBoost.bClosePassCharging ? Context.DeltaTime : 0.f;
+	LapStats.Boosts += DriftBoost.BoostCount - StatsBoostCount;
+	StatsBoostCount = DriftBoost.BoostCount;
+	// The lockout only counts down; a jump up is a new touch or hit.
+	LapStats.Touches += DriftBoost.ClosePassLockoutRemaining > StatsLockout ? 1 : 0;
+	LapStats.Mistakes += DriverState.MistakeCount - StatsMistakeCount;
+	StatsMistakeCount = DriverState.MistakeCount;
+	LapStats.Overslides += DriftBoost.OverslideTimeRemaining > StatsOverslide ? 1 : 0;
+	StatsOverslide = DriftBoost.OverslideTimeRemaining;
+	const float LineError = FMath::Abs(DriverState.LateralOffset - DriverState.TargetLateral);
+	LapStats.MaxLineError = FMath::Max(LapStats.MaxLineError, LineError);
+	LapStats.LineErrorSum += LineError * Context.DeltaTime;
+	LapStats.Seconds += Context.DeltaTime;
+	StatsLockout = DriftBoost.ClosePassLockoutRemaining;
+#endif
+}
+
 void ARaceAIController::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
@@ -356,7 +505,8 @@ void ARaceAIController::DrawDebug() const
 	{
 	case ERaceAIDriverMode::Driving: ModeText = TEXT("driving"); Colour = FColor::Green; break;
 	case ERaceAIDriverMode::Braking: ModeText = TEXT("braking"); Colour = FColor::Red; break;
-	case ERaceAIDriverMode::Avoiding: ModeText = TEXT("avoiding"); Colour = FColor::Yellow; break;
+	case ERaceAIDriverMode::Avoiding: ModeText = TEXT("overtaking"); Colour = FColor::Yellow; break;
+	case ERaceAIDriverMode::Defending: ModeText = TEXT("defending"); Colour = FColor::Cyan; break;
 	case ERaceAIDriverMode::Reversing: ModeText = TEXT("reversing"); Colour = FColor::Magenta; break;
 	default: break;
 	}
@@ -365,6 +515,12 @@ void ARaceAIController::DrawDebug() const
 	DrawDebugLine(World, Vehicle->GetActorLocation(), DriverState.AimPoint, Colour, false, -1.f, 0, 4.f);
 	DrawDebugPoint(World, DriverState.AimPoint, AIDebugPointSize, Colour, false, -1.f);
 	DrawDebugString(World, Vehicle->GetActorLocation() + FVector::UpVector * AIDebugTextHeight,
-		FString::Printf(TEXT("%s  target %.0f km/h  rubber x%.3f"), ModeText, DriverState.TargetSpeed * AICmPerSecondToKmh, RubberBandMultiplier),
+		FString::Printf(TEXT("%s%s%s  target %.0f km/h  rubber x%.3f\ncourage %+.1f  pace -%.1f  %s  boost %+.1f  aggression %.1f"), ModeText,
+			DriverState.bHuggingWall ? TEXT(" WALL") : TEXT(""),
+			DriverState.Mistake != ERaceAIMistake::None ? TEXT(" MISTAKE") : TEXT(""),
+			DriverState.TargetSpeed * AICmPerSecondToKmh, RubberBandMultiplier,
+			Personality.Courage, Personality.Pace,
+			GetDifficulty()->WallHugClearance > 0.f && Personality.WallHugDraw < GetDifficulty()->WallHugShare ? TEXT("wall hugger") : TEXT("open line"),
+			Personality.BoostPatience, Personality.Aggression),
 		nullptr, Colour, 0.f);
 }

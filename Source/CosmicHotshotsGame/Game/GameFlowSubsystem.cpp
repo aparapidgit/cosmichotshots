@@ -83,6 +83,7 @@ void UGameFlowSubsystem::StartSingleRace(const UObject* WorldContext)
 		RivalNames += (NewConfig.AICharacters.IsEmpty() ? TEXT("") : TEXT(",")) + GetNameSafe(Rival);
 		NewConfig.AICharacters.Add(Rival);
 	}
+	NewConfig.AIDriverSeed = Seed;
 
 	// A Single Race is never an Adventure level.
 	if (UAdventureSubsystem* Adventure = UAdventureSubsystem::Get(WorldContext))

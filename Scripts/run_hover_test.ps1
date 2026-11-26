@@ -44,6 +44,14 @@
 # Computer drivers (ARaceAIController; difficulty 0 Easy, 1 Normal, 2 Hard; ch.AI.RubberBanding 0 switches rubber banding off):
 #   Full grid, 3 laps:   -Seconds 200 -LogInterval 20 -TimeoutSeconds 900 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Race.Laps 3,ch.Race.AIOpponents 7,ch.Race.AIDifficulty 1"
 #   Compare difficulties: -Seconds 80 -LogInterval 10 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Race.Laps 1,ch.Race.AIOpponents 1,ch.Race.AIDifficulty 2,ch.AI.RubberBanding 0"
+#   Log lines of the computer drivers: AI_DRIVER (each driver's personality, drawn from its seed), AI_LAP (per driver and lap:
+#   seconds of boost, drift and close pass, wall touches, mistakes, average and largest distance from its line).
+#   "ch.Debug.AILog 0.25" adds AI_STEP lines (line, wall gap, steering, buttons every 0.25 s) for tuning.
+#   Pace check (the flat-out autopilot must lose to Hard, about match Normal, beat Easy; rubber banding off = pace from driving alone):
+#                        -Seconds 215 -LogInterval 60 -TimeoutSeconds 900 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Race.Laps 3,ch.Race.AIOpponents 7,ch.Race.AIDifficulty 2,ch.AI.RubberBanding 0"
+#   One driver on its own (the autopilot starts last and never meets it; passives off): add "ch.Race.AIOpponents 1,ch.Test.PlayerGridSlot 7,ch.Passives.Enabled 0".
+#   Difficulty values live in Scripts/update_ai_difficulty_assets.py (run it after changing them).
+#   Races started through the menus mix the rival draw's seed into every driver: fix it with "ch.Race.AICharacterSeed N", or each run has other drivers.
 # Item boxes (placeholder item "Empty": ITEM PICKUP / ROLL_DONE / USE / REPLACE / RESPAWN lines; scripted mode 9 presses use every 8 s):
 #   -Seconds 135 -LogInterval 20 -TimeoutSeconds 900 -ExtraCmds "ch.Test.ScriptedInput 9,ch.Race.Laps 2,ch.Race.AIOpponents 7,ch.Test.PlayerGridSlot 7"
 #   "ch.Race.ItemBoxes 0" removes the boxes. Loot table check: -ExecOnly "ch.Item.PrintLoot 8"

@@ -306,6 +306,7 @@ bool UAdventureSubsystem::StartLevel(const UObject* WorldContext, int32 LevelInd
 	{
 		Config.AICharacters.Add(Drawn);
 	}
+	Config.AIDriverSeed = Seed;
 
 	FString RivalNames;
 	for (const UCharacterDefinition* Rival : Config.AICharacters)

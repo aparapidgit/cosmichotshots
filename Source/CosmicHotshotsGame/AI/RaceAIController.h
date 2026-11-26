@@ -31,8 +31,8 @@ public:
 	ARaceAIController();
 
 	/**
-	 * Difficulty of this driver and a seed for its small personal differences (line offset).
-	 * The same seed always gives the same driver. Call before or after possessing the vehicle.
+	 * Difficulty of this driver and a seed for its personality (line, courage, wall hugging, boost use,
+	 * mistakes). The same seed always gives the same driver. Call before or after possessing the vehicle.
 	 */
 	void Configure(const UAIDifficultyData* InDifficulty, int32 InSeed);
 
@@ -64,18 +64,21 @@ private:
 	/** Race state after the previous physics step; also finds this driver's id. Null when there is no race. */
 	const struct FRaceStepView* FindRaceView(float SimTime);
 
-	FRaceAIDriverParams BuildParams() const;
+	FRaceAIDriverParams BuildParams(const FVehicleStepInputContext& Context) const;
 
 	/** Adds, updates or removes this driver's rubber-band modifier. Called from the physics step. */
 	void UpdateRubberBand(const FVehicleStepInputContext& Context);
+
+	/** Counts what the car did in its previous step and writes one AI_LAP log line per finished lap. */
+	void UpdateLapStats(const FVehicleStepInputContext& Context);
 
 	void DrawDebug() const;
 
 	UPROPERTY(Transient)
 	TObjectPtr<const UAIDifficultyData> Difficulty;
 
-	/** -1..+1: where in the personal line spread this driver sits. */
-	float PersonalLine = 0.f;
+	/** What makes this driver differ from the others; drawn from its seed. */
+	FRaceAIPersonality Personality;
 
 	TSharedPtr<const FTrackSplineTable> Track;
 	TWeakObjectPtr<URaceTrackerComponent> Tracker;
@@ -92,6 +95,36 @@ private:
 	TArray<FRaceAIOtherCar> OtherCars;
 	/** Item boxes along the track, found once when the driver takes the car. */
 	TArray<FRaceAIBoxSpot> BoxSpots;
+	/** The car's steering-by-speed curve, sampled once (the physics step must not touch the asset's curve). */
+	TArray<float> SteeringBySpeedSamples;
+
 	/** Rubber-band max-speed multiplier applied in the last step (1 = none); for the debug display. */
 	float RubberBandMultiplier = 1.f;
+
+	/** What the car did during the current lap (dev log, for tuning the drivers). Owned by the physics step. */
+	struct FLapStats
+	{
+		float BoostSeconds = 0.f;
+		float DriftSeconds = 0.f;
+		float ClosePassSeconds = 0.f;
+		int32 Boosts = 0;
+		/** Touches of a wall or an object (each starts the close-pass lockout). */
+		int32 Touches = 0;
+		int32 Mistakes = 0;
+		/** Drifts that went past the critical slide angle (loss of control). */
+		int32 Overslides = 0;
+		/** Largest distance (cm) between the car and the line it was steering for. */
+		float MaxLineError = 0.f;
+		float LineErrorSum = 0.f;
+		float Seconds = 0.f;
+	};
+	FLapStats LapStats;
+	int32 StatsLap = INDEX_NONE;
+	int32 StatsBoostCount = 0;
+	float StatsLockout = 0.f;
+	float StatsOverslide = 0.f;
+	int32 StatsMistakeCount = 0;
+	FString VehicleName;
+	/** Next time (vehicle sim time) an AI_STEP line is written (ch.Debug.AILog). */
+	double NextStepLogTime = 0.0;
 };
