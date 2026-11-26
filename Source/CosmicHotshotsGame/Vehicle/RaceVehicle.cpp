@@ -11,6 +11,7 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Passive/PassiveBase.h"
 #include "Passive/VehiclePassiveComponent.h"
+#include "Zone/VehicleZoneComponent.h"
 #include "Vehicle/HoverMovementComponent.h"
 #include "Vehicle/VehicleModifierComponent.h"
 #include "Vehicle/VehicleHullComponent.h"
@@ -54,6 +55,7 @@ ARaceVehicle::ARaceVehicle()
 	Stats = CreateDefaultSubobject<UVehicleStatsComponent>(TEXT("Stats"));
 	Modifiers = CreateDefaultSubobject<UVehicleModifierComponent>(TEXT("Modifiers"));
 	Passive = CreateDefaultSubobject<UVehiclePassiveComponent>(TEXT("Passive"));
+	Zones = CreateDefaultSubobject<UVehicleZoneComponent>(TEXT("Zones"));
 
 	HoverMovement = CreateDefaultSubobject<UHoverMovementComponent>(TEXT("HoverMovement"));
 
@@ -133,6 +135,7 @@ void ARaceVehicle::ApplyCharacter()
 	HoverMovement->SetTuning(ActiveTuning);
 	HoverMovement->SetStats(Stats);
 	HoverMovement->SetModifierComponents(Modifiers, Passive);
+	HoverMovement->SetZoneComponent(Zones);
 	Passive->SetDefinition(ActiveCharacter ? ActiveCharacter->PassiveDefinition.Get() : nullptr);
 	Impact->Initialize(HoverMovement);
 }

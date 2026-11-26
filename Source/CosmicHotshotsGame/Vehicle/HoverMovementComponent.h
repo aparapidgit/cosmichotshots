@@ -26,6 +26,7 @@ class FTrackSplineTable;
 class UPrimitiveComponent;
 class UVehicleModifierComponent;
 class UVehiclePassiveComponent;
+class UVehicleZoneComponent;
 class UVehicleStatsComponent;
 class UVehicleTuningData;
 
@@ -47,6 +48,9 @@ public:
 
 	/** The modifier stack to advance and the passive to run at the start of every physics step. Both optional. */
 	void SetModifierComponents(UVehicleModifierComponent* InModifiers, UVehiclePassiveComponent* InPassive);
+
+	/** The component that applies the track's zones to this car; it is stepped inside the physics step. */
+	void SetZoneComponent(UVehicleZoneComponent* InZones) { Zones = InZones; }
 
 	/** Latest driver intent. Called on the game thread by the owning vehicle. */
 	void SetInput(const FVehicleInputState& InInput);
@@ -146,6 +150,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UVehiclePassiveComponent> Passive;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UVehicleZoneComponent> Zones;
 
 	/** Test helper (ch.Test.SpeedModifier): the test modifier has been added. */
 	bool bTestModifierApplied = false;

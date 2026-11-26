@@ -20,6 +20,12 @@
 #include "Race/RacePlayerState.h"
 #include "Vehicle/HoverMovementComponent.h"
 #include "Vehicle/RaceVehicle.h"
+#include "Race/TrackSplineActor.h"
+#include "Race/TrackSplineTable.h"
+#include "Zone/TrackZoneActor.h"
+#include "Zone/TrackZoneDefinition.h"
+#include "Zone/TrackZoneTable.h"
+#include "Zone/VehicleZoneComponent.h"
 
 namespace
 {
@@ -117,7 +123,111 @@ void ARaceGameMode::Tick(float DeltaSeconds)
 	SpawnFinishDrivers();
 #if !UE_BUILD_SHIPPING
 	SpawnTestDummy();
+	SpawnTestZones();
 #endif
+	// Last: every car and every zone exists by now.
+	SetupTrackZones();
+}
+
+void ARaceGameMode::SpawnTestZones()
+{
+#if !UE_BUILD_SHIPPING
+	const FString Wanted = CosmicHotshots::RaceCVars::SpawnZones.GetValueOnGameThread();
+	const TSharedPtr<const FTrackSplineTable> Track = ATrackSplineActor::FindTable(GetWorld());
+	if (Wanted.IsEmpty() || !Track.IsValid() || !Track->IsValid())
+	{
+		return;
+	}
+
+	constexpr float MetresToCm = 100.f;
+	TArray<FString> Entries;
+	Wanted.ParseIntoArray(Entries, TEXT("/"));
+	for (const FString& Entry : Entries)
+	{
+		FString TypeName;
+		FString PlaceText;
+		if (!Entry.Split(TEXT("@"), &TypeName, &PlaceText))
+		{
+			continue;
+		}
+		TArray<FString> Place;
+		PlaceText.ParseIntoArray(Place, TEXT(":"));
+		const float Distance = Place.IsValidIndex(0) ? FCString::Atof(*Place[0]) * MetresToCm : 0.f;
+		const float Sideways = Place.IsValidIndex(1) ? FCString::Atof(*Place[1]) * MetresToCm : 0.f;
+		const float Turned = Place.IsValidIndex(2) ? FCString::Atof(*Place[2]) : 0.f;
+
+		// The zone types are the project's assets /Game/Data/Zones/DA_Zone_<Type>.
+		const FString AssetPath = FString::Printf(TEXT("/Game/Data/Zones/DA_Zone_%s.DA_Zone_%s"), *TypeName, *TypeName);
+		const UTrackZoneDefinition* Definition = LoadObject<UTrackZoneDefinition>(nullptr, *AssetPath);
+		if (!Definition)
+		{
+			UE_LOG(LogCosmicRace, Warning, TEXT("ch.Test.SpawnZones: no zone type %s (%s)."), *TypeName, *AssetPath);
+			continue;
+		}
+
+		const FTrackFrame Frame = Track->GetFrameAtDistance(Distance);
+		FRotator Rotation = Frame.Direction.GetSafeNormal2D().Rotation();
+		Rotation.Yaw += Turned;
+		ATrackZone* Zone = GetWorld()->SpawnActor<ATrackZone>(ATrackZone::StaticClass(), Frame.Location + Frame.Right * Sideways, Rotation);
+		if (Zone)
+		{
+			Zone->SetDefinition(Definition);
+		}
+	}
+#endif
+}
+
+void ARaceGameMode::SetupTrackZones()
+{
+	const TSharedPtr<const FTrackSplineTable> Track = ATrackSplineActor::FindTable(GetWorld());
+	if (!Track.IsValid() || !Track->IsValid())
+	{
+		return;
+	}
+
+	// Zones in a fixed order (by name), so every run of a race sees the same list.
+	TArray<ATrackZone*> ZoneActors;
+	for (TActorIterator<ATrackZone> It(GetWorld()); It; ++It)
+	{
+		if (It->GetDefinition())
+		{
+			ZoneActors.Add(*It);
+		}
+	}
+	if (ZoneActors.IsEmpty())
+	{
+		return;
+	}
+	ZoneActors.Sort([](const ATrackZone& A, const ATrackZone& B) { return A.GetName() < B.GetName(); });
+
+	const TSharedRef<FTrackZoneTable> Table = MakeShared<FTrackZoneTable>();
+	for (int32 Index = 0; Index < ZoneActors.Num(); ++Index)
+	{
+		ATrackZone* Actor = ZoneActors[Index];
+		const UTrackZoneDefinition* Definition = Actor->GetDefinition();
+		const FTrackProjection Projection = Track->Project(Actor->GetActorLocation());
+
+		FTrackZoneEntry& Entry = Table->Zones.AddDefaulted_GetRef();
+		Entry.Definition = Definition;
+		Entry.Name = Actor->GetName();
+		Entry.TrackDistance = Projection.Distance;
+		Entry.Lateral = Projection.LateralOffset;
+		Entry.HalfWidth = Definition->HalfWidth > 0.f ? Definition->HalfWidth : Track->GetHalfWidth();
+		Entry.WorldLocation = Actor->GetActorLocation();
+		Entry.ArrowDirection = Actor->GetActorForwardVector().GetSafeNormal2D();
+		Entry.Seed = Index;
+		Actor->SetTrackPlacement(Entry.Seed, Entry.HalfWidth, Projection.Direction);
+
+		UE_LOG(LogCosmicRace, Log, TEXT("ZONE_SETUP %s type=%s dist=%.0f lateral=%.0f"),
+			*Entry.Name, *Definition->GetName(), Entry.TrackDistance, Entry.Lateral);
+	}
+
+	const ARaceGameState* RaceState = GetGameState<ARaceGameState>();
+	URaceTrackerComponent* Tracker = RaceState ? RaceState->GetTracker() : nullptr;
+	for (TActorIterator<ARaceVehicle> It(GetWorld()); It; ++It)
+	{
+		It->GetZones()->SetZones(Table, Track, Tracker);
+	}
 }
 
 void ARaceGameMode::SpawnTestDummy()

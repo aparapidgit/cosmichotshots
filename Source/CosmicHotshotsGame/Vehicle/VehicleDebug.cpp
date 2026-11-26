@@ -48,6 +48,10 @@ namespace CosmicHotshots::VehicleCVars
 		TEXT("ch.Vehicle.DriftGrip"), UseAssetValue,
 		TEXT("Override sideways grip while drifting in 1/s. Negative = use the tuning data asset."), ECVF_Cheat);
 
+	TAutoConsoleVariable<float> DriftMinTurn(
+		TEXT("ch.Vehicle.DriftMinTurn"), UseAssetValue,
+		TEXT("Override the share of the full turn a drifting car makes with the steering fully against the drift (0..1). Negative = use the tuning data asset."), ECVF_Cheat);
+
 	TAutoConsoleVariable<int32> InfiniteBoost(
 		TEXT("ch.Vehicle.InfiniteBoost"), 0,
 		TEXT("1 = the boost meter is always full."), ECVF_Cheat);

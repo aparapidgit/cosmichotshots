@@ -19,6 +19,7 @@ class UStaticMeshComponent;
 class UVehicleHullComponent;
 class UVehicleModifierComponent;
 class UVehiclePassiveComponent;
+class UVehicleZoneComponent;
 class UVehicleStatsComponent;
 class UVehicleTuningData;
 
@@ -47,6 +48,7 @@ public:
 	UVehicleStatsComponent* GetStats() const { return Stats; }
 	UVehicleModifierComponent* GetModifiers() const { return Modifiers; }
 	UVehiclePassiveComponent* GetPassive() const { return Passive; }
+	UVehicleZoneComponent* GetZones() const { return Zones; }
 
 	/** Mass of the vehicle's rigid body in kg. */
 	float GetBodyMass() const;
@@ -96,6 +98,10 @@ protected:
 	/** Runs the character's passive. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle")
 	TObjectPtr<UVehiclePassiveComponent> Passive;
+
+	/** What the track's zones do to this car. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle")
+	TObjectPtr<UVehicleZoneComponent> Zones;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Vehicle")
 	TObjectPtr<UHoverMovementComponent> HoverMovement;

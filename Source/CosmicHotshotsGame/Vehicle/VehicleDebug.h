@@ -18,6 +18,7 @@ namespace CosmicHotshots::VehicleCVars
 	extern TAutoConsoleVariable<float> YawResponse;
 	extern TAutoConsoleVariable<float> LateralGrip;
 	extern TAutoConsoleVariable<float> DriftGrip;
+	extern TAutoConsoleVariable<float> DriftMinTurn;
 	extern TAutoConsoleVariable<float> DriftCriticalAngle;
 
 	/** 1 = the boost meter is always full (tuning boosts without having to drift first). */

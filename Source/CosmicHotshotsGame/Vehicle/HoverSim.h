@@ -99,6 +99,9 @@ struct FHoverSimParams
 	/** Dev only: keeps the boost meter full. */
 	bool bInfiniteBoost = false;
 
+	/** Pull or push from a track zone for this step (cm/s^2, world space). Acts on the ground only. */
+	FVector ExternalAcceleration = FVector::ZeroVector;
+
 	// Air
 	float AirLevelStrength = 0.f;
 	float AirLevelDamping = 0.f;

@@ -67,6 +67,16 @@ namespace CosmicHotshots::RaceCVars
 	/** Test helper: one console command run at a wall-clock time, as "6@ch.Adventure.UnlockAll 1". */
 	extern TAutoConsoleVariable<FString> ExecAt;
 
+	/**
+	 * Test helper: track zones to spawn when the race is set up, as "TurboHub@300:0/EnergyDock@520:-4":
+	 * zone type @ metres along the track from the start line : metres to the right of the centre line
+	 * (optional third value: degrees the zone is turned to the right of the track direction).
+	 */
+	extern TAutoConsoleVariable<FString> SpawnZones;
+
+	/** 1 = draw every track zone's outline and name. */
+	extern TAutoConsoleVariable<int32> DebugZones;
+
 	/** Test helper: collect frame times from this wall-clock time on and log their statistics at quit. 0 = off. */
 	extern TAutoConsoleVariable<float> FrameStats;
 

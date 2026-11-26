@@ -359,6 +359,8 @@ void FHoverSim::Step(
 	{
 		const double Grip = (DriftBoost.bDrifting ? Params.DriftGrip : Params.LateralGrip) * ControlGripScale;
 		Body.AddForce(Right * (-LateralSpeed * Grip * Mass));
+		// Track zones that pull or push (Magnetonium, Dust Vortex, Arrows Pad).
+		Body.AddForce(Params.ExternalAcceleration * Mass);
 	}
 
 	// --------------------------------------------------------------- Steering

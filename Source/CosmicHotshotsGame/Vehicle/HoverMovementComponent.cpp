@@ -22,6 +22,7 @@
 #include "Vehicle/VehicleModifierComponent.h"
 #include "Vehicle/VehicleStatsComponent.h"
 #include "Vehicle/VehicleTuningData.h"
+#include "Zone/VehicleZoneComponent.h"
 
 namespace
 {
@@ -470,7 +471,7 @@ FHoverSimParams UHoverMovementComponent::BuildSimParams() const
 
 	Params.DriftGrip = VehicleCVars::Resolve(VehicleCVars::DriftGrip, Tuning->DriftGrip);
 	Params.DriftYawMultiplier = Tuning->DriftYawMultiplier;
-	Params.DriftMinTurn = Tuning->DriftMinTurn;
+	Params.DriftMinTurn = VehicleCVars::Resolve(VehicleCVars::DriftMinTurn, Tuning->DriftMinTurn);
 	Params.DriftMinSpeed = Tuning->DriftMinSpeedKmh * KmhToCmPerSecond;
 	Params.DriftEndSpeed = Tuning->DriftEndSpeedKmh * KmhToCmPerSecond;
 	Params.DriftChargeRate = Tuning->DriftChargeRate;
@@ -731,7 +732,29 @@ void UHoverMovementComponent::AsyncPhysicsTickComponent(float DeltaTime, float S
 
 	const int32 AbilityUsesBefore = SimState.DriftBoost.AbilityUseCount;
 
-	FHoverSim::Step(*Body, BuildSimParams(), StepInput, bBoostPressed, bAbilityPressed, Trace, DeltaTime, SimState);
+	FHoverSimParams StepParams = BuildSimParams();
+
+	// Track zones: they change the boost meter, the modifier stack and control loss themselves, and hand
+	// back a pull or push for this step, a one-off loss of speed (meteor) or a new place (Warp Gate).
+	if (Zones && !bRaceLocked)
+	{
+		const FVehicleZoneStep ZoneStep = Zones->StepZones(DeltaTime, SimTime, FVector(Body->X()), FVector(Body->V()),
+			SimState, Modifiers ? &Modifiers->GetStack() : nullptr, StepParams.BoostSegments);
+		StepParams.ExternalAcceleration = ZoneStep.Acceleration;
+		if (ZoneStep.VelocityScale != 1.f)
+		{
+			Body->SetV(Body->V() * ZoneStep.VelocityScale);
+		}
+		if (ZoneStep.bTeleport)
+		{
+			Body->SetX(ZoneStep.TeleportLocation);
+			Body->SetR(ZoneStep.TeleportRotation);
+			Body->SetV(ZoneStep.TeleportVelocity);
+			Body->SetW(FVector::ZeroVector);
+		}
+	}
+
+	FHoverSim::Step(*Body, StepParams, StepInput, bBoostPressed, bAbilityPressed, Trace, DeltaTime, SimState);
 	LastStepInput = StepInput;
 
 #if !UE_BUILD_SHIPPING

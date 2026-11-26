@@ -242,6 +242,27 @@ Item boxes are floating boxes placed on the track. The REAL power-ups do not exi
 - Dev setting to force a specific item from the box, and to disable the position bias.
 - Console command to give the local player any item.
 
+## Track zones (developer design; built, values to tune)
+Zones are hazards and helpers a track designer places on the road. A zone is an `ATrackZone` actor on the map that points at a zone TYPE (`UTrackZoneDefinition`, assets `/Game/Data/Zones/DA_Zone_<Type>`, values written by `Scripts/create_zone_assets.py`). No zone is placed on the existing maps yet: they are added when a map is designed. Tests spawn them with `ch.Test.SpawnZones`.
+
+| Zone | What it does |
+|---|---|
+| Meteor Cluster | Area about 10 x 10 m, or from wall to wall. Meteors hit the floor at announced spots (a growing red marker). A hit car reacts as to a strong hit (short loss of control and speed) and loses 1 Energy Core segment. There is no damage system. |
+| Spectral Tower | A car driving through sets off a wave: every OTHER car gets a short burst of acceleration. The car that set it off gets nothing. |
+| Magnetonium | A magnetic rock pulls cars towards it, mostly sideways; the driver has to correct. |
+| Energy Dock | Driving through refills one segment (once per car, then a cooldown). |
+| Dust Vortex | Slows the car and pulls it to the centre; in the centre the car briefly loses control. The normal boost powers through it (a boosting car is not slowed); there is no special button and no extra cost. |
+| Turbo Hub | Strong acceleration for a few seconds and a slightly higher top speed. |
+| Gravity Abyss | Takes ALL the boost in the meter. A car with an empty meter is briefly slowed and unsettled instead. |
+| Warp Gate | The car comes out about 10 m further along the track, speed kept, aligned with the track. |
+| Arrows Pad | Pushes the car the way the arrows (the actor's forward direction) point. |
+
+Rules:
+- A zone's effect is decided in each car's own fixed physics step (`UVehicleZoneComponent`), from the zone table the race builds once (`FTrackZoneTable`). Never from overlap events. Humans and computer drivers are treated alike.
+- Effects go through the systems that exist: modifier stack, Energy Core, control loss. Anything that depends on other cars or on time (tower wave, meteors) reads the race state after the previous step.
+- A new zone type = one enum value, one case in `UVehicleZoneComponent::StepZones`, one asset. Every number lives in the definition asset.
+- Computer drivers do not know about zones yet (second AI pass).
+
 ## Energy Core and active abilities (the abilities are Phase 3)
 - The Energy Core is the shared reservoir of boost fluid: ONE meter for both boost and the active ability, not a separate resource or a second bar. Its rules are in "Energy Core: boost and active abilities" and "Energy Core: boost loss on impact". The reservoir, its segments, hold-to-boost and the ability button (which spends one segment) already exist from Phase 1.
 - What is left for Phase 3 is the ABILITIES themselves. Designed so far: see "Active abilities (PC version)". Keep an `IActiveAbility` interface so abilities can be added per character without refactoring; do not invent abilities that are not listed.

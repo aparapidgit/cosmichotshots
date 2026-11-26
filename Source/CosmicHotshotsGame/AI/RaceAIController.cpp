@@ -16,6 +16,7 @@
 #include "Vehicle/HoverMovementComponent.h"
 #include "Vehicle/HoverSim.h"
 #include "Vehicle/RaceVehicle.h"
+#include "Vehicle/VehicleDebug.h"
 #include "Vehicle/VehicleModifierStack.h"
 #include "Vehicle/VehicleStatsComponent.h"
 #include "Vehicle/VehicleTuningData.h"
@@ -230,9 +231,10 @@ FRaceAIDriverParams ARaceAIController::BuildParams(const FVehicleStepInputContex
 			Params.BoostTopSpeed = Tuning->BoostMaxSpeedKmh * AIKmhToCmPerSecond;
 			Params.DriftCriticalSlipAngle = Tuning->DriftCriticalSlipAngle;
 			Params.BodyHalfWidth = Tuning->BodySize.Y * 0.5f;
-			Params.DriftMinTurn = Tuning->DriftMinTurn;
+			// Through the same dev overrides as the car's physics, so the driver plans with what the car really does.
+			Params.DriftMinTurn = CosmicHotshots::VehicleCVars::Resolve(CosmicHotshots::VehicleCVars::DriftMinTurn, Tuning->DriftMinTurn);
 			Params.DriftYawMultiplier = Tuning->DriftYawMultiplier;
-			Params.DriftGrip = Tuning->DriftGrip * Vehicle->GetStats()->GetModifiers().Grip;
+			Params.DriftGrip = CosmicHotshots::VehicleCVars::Resolve(CosmicHotshots::VehicleCVars::DriftGrip, Tuning->DriftGrip) * Vehicle->GetStats()->GetModifiers().Grip;
 
 			// Steering: the sim looks up the full-lock turn rate at any speed, like the car's own physics.
 			Params.FullYawRate = FMath::DegreesToRadians(Tuning->MaxYawRate) * Vehicle->GetStats()->GetModifiers().Steering;

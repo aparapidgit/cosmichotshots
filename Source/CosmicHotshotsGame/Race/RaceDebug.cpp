@@ -73,6 +73,14 @@ namespace CosmicHotshots::RaceCVars
 		TEXT("ch.Test.WallScreenshotTime"), 0.f,
 		TEXT("Test helper: take one screenshot at this wall-clock time in seconds since the game started ticking (also while paused). 0 = off."), ECVF_Cheat);
 
+	TAutoConsoleVariable<FString> SpawnZones(
+		TEXT("ch.Test.SpawnZones"), TEXT(""),
+		TEXT("Test helper: track zones spawned when the race is set up, as \"TurboHub@300:0/EnergyDock@520:-4\" (type @ metres along the track : metres to the right [: degrees turned right])."), ECVF_Cheat);
+
+	TAutoConsoleVariable<int32> DebugZones(
+		TEXT("ch.Debug.Zones"), 0,
+		TEXT("1 = draw every track zone's outline and name."), ECVF_Cheat);
+
 	TAutoConsoleVariable<FString> ExecAt(
 		TEXT("ch.Test.ExecAt"), TEXT(""),
 		TEXT("Test helper: one console command run at a wall-clock time (s since the game started ticking), as \"6@ch.Adventure.UnlockAll 1\"."), ECVF_Cheat);

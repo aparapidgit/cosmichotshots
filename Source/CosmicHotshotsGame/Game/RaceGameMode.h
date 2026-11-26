@@ -30,6 +30,12 @@ private:
 	 */
 	void SpawnTestDummy();
 
+	/** Dev: spawns the zones named in ch.Test.SpawnZones. */
+	void SpawnTestZones();
+
+	/** Builds the zone table from the zone actors on the map and hands it to every car. */
+	void SetupTrackZones();
+
 	/**
 	 * Test helper (ch.Test.Bots): fills the free grid slots with test bots that drive the test autopilot,
 	 * each with its own line, throttle and roster character. Same first-tick timing as the dummy. NOT the race AI.

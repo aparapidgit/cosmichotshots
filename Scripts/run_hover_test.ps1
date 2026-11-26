@@ -52,6 +52,11 @@
 #   One driver on its own (the autopilot starts last and never meets it; passives off): add "ch.Race.AIOpponents 1,ch.Test.PlayerGridSlot 7,ch.Passives.Enabled 0".
 #   Difficulty values live in Scripts/update_ai_difficulty_assets.py (run it after changing them).
 #   Races started through the menus mix the rival draw's seed into every driver: fix it with "ch.Race.AICharacterSeed N", or each run has other drivers.
+# Track zones (ZONE_SETUP and ZONE lines; the zone types are /Game/Data/Zones/DA_Zone_<Type>, written by Scripts/create_zone_assets.py):
+#   All types on the test track (type@metres along the track:metres to the right[:degrees turned right], separated by /):
+#                        -Seconds 80 -LogInterval 10 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Race.Laps 1,ch.Race.AIOpponents 1,ch.Race.AIDifficulty 1,ch.Test.SpawnZones TurboHub@100:0/EnergyDock@250:0/GravityAbyss@400:0/GravityAbyss@520:0/ArrowsPad@650:0:90/Magnetonium@900:8/DustVortex@1200:0/WarpGate@1500:0/MeteorCluster@1800:0/SpectralTower@2100:0"
+#   Meteor hit on a parked car: -Seconds 60 -LogInterval 20 -ExtraCmds "ch.Test.StartBoostCharge 1,ch.Test.SpawnZones MeteorCluster@-8:0"   (one "HIT by meteor" line)
+#   "ch.Debug.Zones 1" draws every zone. A race without zones is unchanged.
 # Item boxes (placeholder item "Empty": ITEM PICKUP / ROLL_DONE / USE / REPLACE / RESPAWN lines; scripted mode 9 presses use every 8 s):
 #   -Seconds 135 -LogInterval 20 -TimeoutSeconds 900 -ExtraCmds "ch.Test.ScriptedInput 9,ch.Race.Laps 2,ch.Race.AIOpponents 7,ch.Test.PlayerGridSlot 7"
 #   "ch.Race.ItemBoxes 0" removes the boxes. Loot table check: -ExecOnly "ch.Item.PrintLoot 8"
