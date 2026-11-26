@@ -73,6 +73,18 @@ namespace CosmicHotshots::RaceCVars
 		TEXT("ch.Test.WallScreenshotTime"), 0.f,
 		TEXT("Test helper: take one screenshot at this wall-clock time in seconds since the game started ticking (also while paused). 0 = off."), ECVF_Cheat);
 
+	TAutoConsoleVariable<FString> ExecAt(
+		TEXT("ch.Test.ExecAt"), TEXT(""),
+		TEXT("Test helper: one console command run at a wall-clock time (s since the game started ticking), as \"6@ch.Adventure.UnlockAll 1\"."), ECVF_Cheat);
+
+	TAutoConsoleVariable<float> FrameStats(
+		TEXT("ch.Test.FrameStats"), 0.f,
+		TEXT("Test helper: collect every frame time from this wall-clock time (s) on and log average, median, p95, p99, max and hitch count when the game quits. 0 = off."), ECVF_Cheat);
+
+	TAutoConsoleVariable<int32> RaceHudEnabled(
+		TEXT("ch.Hud.Enabled"), 1,
+		TEXT("Dev: 0 = the race HUD widget is not created at all (to measure what it costs). Read when the race starts."), ECVF_Cheat);
+
 	TAutoConsoleVariable<float> WallQuitTime(
 		TEXT("ch.Test.WallQuitTime"), 0.f,
 		TEXT("Test helper: quit at this wall-clock time in seconds since the game started ticking (also while paused). 0 = off."), ECVF_Cheat);

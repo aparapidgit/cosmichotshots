@@ -102,6 +102,12 @@ protected:
 	/** The back button was pressed on a screen that was not opened from another one. Return true when it did something. */
 	virtual bool HandleBackOnRoot() { return false; }
 
+	/** The screen was put on the viewport: the first time, or again when a child screen closed. Refresh what may have changed. */
+	virtual void HandleScreenShown() {}
+
+	/** Changes the label of a plain button (not of an option row). */
+	void SetButtonText(int32 ButtonIndex, const FText& Text, const FLinearColor& TextColour = FLinearColor::White);
+
 	/** The focus moved to another button (INDEX_NONE = none). */
 	virtual void HandleFocusChanged(int32 ButtonIndex) {}
 

@@ -1,6 +1,7 @@
 #include "Debug/TestDriverSubsystem.h"
 
 #include "CosmicHotshotsGame.h"
+#include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Misc/App.h"
@@ -11,6 +12,10 @@ namespace
 {
 	/** Longest frame the test clock counts (s): a loading hitch must not jump over a scripted moment. */
 	constexpr float TestDriverMaxFrameTime = 0.1f;
+
+	/** A frame this many times longer than the median frame counts as a hitch in the frame statistics. */
+	constexpr float TestDriverHitchFactor = 1.5f;
+	constexpr float TestDriverMsPerSecond = 1000.f;
 
 	/** Time of a ch.Test.MenuKeys batch written without "time@" (s). */
 	constexpr float TestDriverDefaultKeyTime = 1.5f;
@@ -89,6 +94,26 @@ void UTestDriverSubsystem::Tick(float DeltaTime)
 		}
 	}
 
+	// ch.Test.ExecAt "time@command": what a developer would type into the console at that moment.
+	FString ExecTimeText;
+	FString ExecCommand;
+	if (!bExecDone && RaceCVars::ExecAt.GetValueOnGameThread().Split(TEXT("@"), &ExecTimeText, &ExecCommand) && WallTime >= FCString::Atof(*ExecTimeText))
+	{
+		bExecDone = true;
+		UE_LOG(LogCosmicRace, Log, TEXT("TEST exec at %s s: %s"), *ExecTimeText, *ExecCommand);
+		if (GEngine)
+		{
+			GEngine->Exec(GetTickableGameObjectWorld(), *ExecCommand);
+		}
+	}
+
+	// ch.Test.FrameStats N: collect every frame time from wall second N on (after loading and the start).
+	const float FrameStatsStart = RaceCVars::FrameStats.GetValueOnGameThread();
+	if (FrameStatsStart > 0.f && WallTime >= FrameStatsStart)
+	{
+		FrameTimes.Add(static_cast<float>(FApp::GetDeltaTime()));
+	}
+
 	const float ScreenshotTime = RaceCVars::WallScreenshotTime.GetValueOnGameThread();
 	if (ScreenshotTime > 0.f && !bScreenshotTaken && WallTime >= ScreenshotTime)
 	{
@@ -99,7 +124,40 @@ void UTestDriverSubsystem::Tick(float DeltaTime)
 	const float QuitTime = RaceCVars::WallQuitTime.GetValueOnGameThread();
 	if (QuitTime > 0.f && WallTime >= QuitTime)
 	{
+		LogFrameStats();
 		FPlatformMisc::RequestExit(false);
 	}
 #endif
+}
+
+void UTestDriverSubsystem::Deinitialize()
+{
+	LogFrameStats();
+	Super::Deinitialize();
+}
+
+void UTestDriverSubsystem::LogFrameStats()
+{
+	if (FrameTimes.IsEmpty())
+	{
+		return;
+	}
+
+	// How even the frame rate was: the average hides hitches, the slowest frames show them.
+	TArray<float> Sorted = FrameTimes;
+	Sorted.Sort();
+	float Total = 0.f;
+	int32 NumHitches = 0;
+	const float Median = Sorted[Sorted.Num() / 2];
+	for (const float FrameTime : Sorted)
+	{
+		Total += FrameTime;
+		NumHitches += FrameTime > Median * TestDriverHitchFactor ? 1 : 0;
+	}
+	UE_LOG(LogCosmicRace, Log, TEXT("TEST frames=%d avgMs=%.1f medianMs=%.1f p95Ms=%.1f p99Ms=%.1f maxMs=%.1f hitches=%d (frames over %.1fx the median)"),
+		Sorted.Num(), Total / Sorted.Num() * TestDriverMsPerSecond, Median * TestDriverMsPerSecond,
+		Sorted[FMath::Min(Sorted.Num() - 1, Sorted.Num() * 95 / 100)] * TestDriverMsPerSecond,
+		Sorted[FMath::Min(Sorted.Num() - 1, Sorted.Num() * 99 / 100)] * TestDriverMsPerSecond,
+		Sorted.Last() * TestDriverMsPerSecond, NumHitches, TestDriverHitchFactor);
+	FrameTimes.Reset();
 }

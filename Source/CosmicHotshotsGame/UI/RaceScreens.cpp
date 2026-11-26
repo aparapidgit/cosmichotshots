@@ -236,9 +236,20 @@ void URaceScreenWidget::HandleButtonClicked(int32 ButtonIndex)
 	HandleButton(ButtonIndex);
 }
 
+void URaceScreenWidget::SetButtonText(int32 ButtonIndex, const FText& Text, const FLinearColor& TextColour)
+{
+	UTextBlock* Label = Buttons.IsValidIndex(ButtonIndex) ? Cast<UTextBlock>(Buttons[ButtonIndex]->GetChildAt(0)) : nullptr;
+	if (Label)
+	{
+		Label->SetText(Text);
+		Label->SetColorAndOpacity(FSlateColor(TextColour));
+	}
+}
+
 void URaceScreenWidget::ShowScreen()
 {
 	AddToViewport(ScreenZOrder);
+	HandleScreenShown();
 
 	APlayerController* Player = GetOwningPlayer();
 	if (!Player)

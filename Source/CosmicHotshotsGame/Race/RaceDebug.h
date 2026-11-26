@@ -64,6 +64,15 @@ namespace CosmicHotshots::RaceCVars
 	/** Test helper: take one screenshot at this wall-clock time (s, also while paused). 0 = off. */
 	extern TAutoConsoleVariable<float> WallScreenshotTime;
 
+	/** Test helper: one console command run at a wall-clock time, as "6@ch.Adventure.UnlockAll 1". */
+	extern TAutoConsoleVariable<FString> ExecAt;
+
+	/** Test helper: collect frame times from this wall-clock time on and log their statistics at quit. 0 = off. */
+	extern TAutoConsoleVariable<float> FrameStats;
+
+	/** Dev: 0 = no race HUD widget (to measure what it costs). Read when the race starts. */
+	extern TAutoConsoleVariable<int32> RaceHudEnabled;
+
 	/** Test helper: quit at this wall-clock time (s, also while paused). 0 = off. */
 	extern TAutoConsoleVariable<float> WallQuitTime;
 

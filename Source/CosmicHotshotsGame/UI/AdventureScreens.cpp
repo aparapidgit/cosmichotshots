@@ -55,19 +55,34 @@ void UAdventureSlotSelectWidget::BuildScreen()
 
 	const UAdventureSubsystem* Adventure = UAdventureSubsystem::Get(this);
 	const UAdventureCampaignDefinition* Campaign = Adventure ? Adventure->GetCampaign() : nullptr;
-	const int32 TotalLevels = Campaign ? Campaign->GetNumLevels() : 0;
 
-	// Buttons 0 .. NumSaveSlots - 1 are the slots; the next one is Back.
+	// Buttons 0 .. NumSaveSlots - 1 are the slots (RefreshSlots writes their labels); the next one is Back.
+	for (int32 SlotIndex = 0; SlotIndex < UAdventureSubsystem::NumSaveSlots; ++SlotIndex)
+	{
+		AddButton(FText::GetEmpty());
+	}
+	AddButton(LOCTEXT("SlotsBack", "Back"));
+	StatusText = AddLine(Campaign ? FText::GetEmpty() : LOCTEXT("NoCampaign", "No Adventure campaign in Project Settings > Game > Cosmic Hotshots."), AdventureWarningColour);
+}
+
+void UAdventureSlotSelectWidget::HandleScreenShown()
+{
+	RefreshSlots();
+}
+
+void UAdventureSlotSelectWidget::RefreshSlots()
+{
+	const UAdventureSubsystem* Adventure = UAdventureSubsystem::Get(this);
+	const UAdventureCampaignDefinition* Campaign = Adventure ? Adventure->GetCampaign() : nullptr;
+	const int32 TotalLevels = Campaign ? Campaign->GetNumLevels() : 0;
 	for (int32 SlotIndex = 0; SlotIndex < UAdventureSubsystem::NumSaveSlots; ++SlotIndex)
 	{
 		const bool bExists = Adventure && Adventure->DoesSlotExist(SlotIndex);
-		AddButton(bExists
+		SetButtonText(SlotIndex, bExists
 			? FText::Format(LOCTEXT("SlotUsed", "Slot {0}:   {1} / {2} levels won"), FText::AsNumber(SlotIndex + 1), FText::AsNumber(Adventure->GetSlotLevelsWon(SlotIndex)), FText::AsNumber(TotalLevels))
 			: FText::Format(LOCTEXT("SlotEmpty", "Slot {0}:   empty"), FText::AsNumber(SlotIndex + 1)),
 			bExists ? FLinearColor::White : AdventureDimColour);
 	}
-	AddButton(LOCTEXT("SlotsBack", "Back"));
-	StatusText = AddLine(Campaign ? FText::GetEmpty() : LOCTEXT("NoCampaign", "No Adventure campaign in Project Settings > Game > Cosmic Hotshots."), AdventureWarningColour);
 }
 
 void UAdventureSlotSelectWidget::HandleButton(int32 ButtonIndex)
@@ -140,24 +155,19 @@ void UAdventureLevelListWidget::BuildScreen()
 	const UAdventureSubsystem* Adventure = UAdventureSubsystem::Get(this);
 	const UAdventureCampaignDefinition* Campaign = Adventure ? Adventure->GetCampaign() : nullptr;
 	NumLevels = 0;
+	SectionLines.Reset();
 	int32 FirstOpenLevel = INDEX_NONE;
 	for (int32 SectionIndex = 0; Campaign && SectionIndex < Campaign->Sections.Num(); ++SectionIndex)
 	{
-		const FAdventureSection& Section = Campaign->Sections[SectionIndex];
-		AddLine(FText::Format(LOCTEXT("SectionLine", "{0}   ({1})"), Section.DisplayName,
-			Adventure->IsSectionOpen(SectionIndex) ? LOCTEXT("GateOpen", "gate open") : LOCTEXT("GateClosed", "gate closed")));
-
-		for (const UAdventureLevelDefinition* Level : Section.Levels)
+		// The texts come from RefreshLevels.
+		SectionLines.Add(AddLine(FText::GetEmpty()));
+		for (int32 Index = 0; Index < Campaign->Sections[SectionIndex].Levels.Num(); ++Index)
 		{
-			const bool bWon = Adventure->IsLevelWon(NumLevels);
-			const bool bUnlocked = Adventure->IsLevelUnlocked(NumLevels);
-			if (bUnlocked && !bWon && FirstOpenLevel == INDEX_NONE)
+			if (FirstOpenLevel == INDEX_NONE && Adventure->IsLevelUnlocked(NumLevels) && !Adventure->IsLevelWon(NumLevels))
 			{
 				FirstOpenLevel = NumLevels;
 			}
-			AddButton(FText::Format(LOCTEXT("LevelButton", "{0}   {1}"), Level ? Level->DisplayName : LOCTEXT("MissingLevel", "(missing level)"),
-				bWon ? LOCTEXT("LevelWon", "WON") : bUnlocked ? LOCTEXT("LevelOpen", "OPEN") : LOCTEXT("LevelLocked", "LOCKED")),
-				bWon ? AdventureWonColour : bUnlocked ? FLinearColor::White : AdventureLockedColour);
+			AddButton(FText::GetEmpty());
 			++NumLevels;
 		}
 	}
@@ -167,6 +177,63 @@ void UAdventureLevelListWidget::BuildScreen()
 
 	// The focus starts on the level to play next.
 	InitialFocusButton = FirstOpenLevel != INDEX_NONE ? FirstOpenLevel : 0;
+	RefreshLevels();
+}
+
+void UAdventureLevelListWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+	RefreshLevels();
+}
+
+void UAdventureLevelListWidget::RefreshLevels()
+{
+	const UAdventureSubsystem* Adventure = UAdventureSubsystem::Get(this);
+	const UAdventureCampaignDefinition* Campaign = Adventure ? Adventure->GetCampaign() : nullptr;
+	if (!Campaign)
+	{
+		return;
+	}
+
+	// Two bits per level (won, open) and one per section (gate open): rewrite the labels only when they change.
+	uint64 State = 0;
+	for (int32 LevelIndex = 0; LevelIndex < NumLevels; ++LevelIndex)
+	{
+		State = (State << 2) | (Adventure->IsLevelWon(LevelIndex) ? 2 : 0) | (Adventure->IsLevelUnlocked(LevelIndex) ? 1 : 0);
+	}
+	for (int32 SectionIndex = 0; SectionIndex < Campaign->Sections.Num(); ++SectionIndex)
+	{
+		State = (State << 1) | (Adventure->IsSectionOpen(SectionIndex) ? 1 : 0);
+	}
+	if (State == ShownState)
+	{
+		return;
+	}
+	ShownState = State;
+
+	int32 LevelIndex = 0;
+	for (int32 SectionIndex = 0; SectionIndex < Campaign->Sections.Num(); ++SectionIndex)
+	{
+		const FAdventureSection& Section = Campaign->Sections[SectionIndex];
+		if (SectionLines.IsValidIndex(SectionIndex) && SectionLines[SectionIndex])
+		{
+			SectionLines[SectionIndex]->SetText(FText::Format(LOCTEXT("SectionLine", "{0}   ({1})"), Section.DisplayName,
+				Adventure->IsSectionOpen(SectionIndex) ? LOCTEXT("GateOpen", "gate open") : LOCTEXT("GateClosed", "gate closed")));
+		}
+		for (const UAdventureLevelDefinition* Level : Section.Levels)
+		{
+			const bool bWon = Adventure->IsLevelWon(LevelIndex);
+			const bool bUnlocked = Adventure->IsLevelUnlocked(LevelIndex);
+			SetButtonText(LevelIndex, FText::Format(LOCTEXT("LevelButton", "{0}   {1}"), Level ? Level->DisplayName : LOCTEXT("MissingLevel", "(missing level)"),
+				bWon ? LOCTEXT("LevelWon", "WON") : bUnlocked ? LOCTEXT("LevelOpen", "OPEN") : LOCTEXT("LevelLocked", "LOCKED")),
+				bWon ? AdventureWonColour : bUnlocked ? FLinearColor::White : AdventureLockedColour);
+			++LevelIndex;
+		}
+	}
+	if (StatusText)
+	{
+		StatusText->SetText(FText::GetEmpty());
+	}
 }
 
 void UAdventureLevelListWidget::HandleButton(int32 ButtonIndex)

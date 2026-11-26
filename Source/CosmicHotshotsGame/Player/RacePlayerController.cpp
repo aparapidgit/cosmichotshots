@@ -241,8 +241,11 @@ void ARacePlayerController::SetUpRaceScreens()
 	OverlayWidget->AddToViewport();
 
 	// This player's HUD, on this player's part of the screen (split-screen ready), under the overlay and the menus.
-	HudWidget = CreateWidget<URaceHudWidget>(this, URaceHudWidget::StaticClass());
-	HudWidget->AddToPlayerScreen(HudZOrder);
+	if (CosmicHotshots::RaceCVars::RaceHudEnabled.GetValueOnGameThread() != 0)
+	{
+		HudWidget = CreateWidget<URaceHudWidget>(this, URaceHudWidget::StaticClass());
+		HudWidget->AddToPlayerScreen(HudZOrder);
+	}
 
 	if (bWaitingForSetup)
 	{
