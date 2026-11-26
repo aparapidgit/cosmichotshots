@@ -46,6 +46,7 @@ namespace
 	// Limits for values bent by a driver's personality.
 	constexpr float MinTopSpeedFactor = 0.3f;
 	constexpr float MinBoostStartCharge = 0.1f;
+	constexpr float MinCornerSteeringShare = 0.2f;
 
 	// Debug drawing only.
 	constexpr float AIDebugPointSize = 14.f;
@@ -231,17 +232,12 @@ FRaceAIDriverParams ARaceAIController::BuildParams(const FVehicleStepInputContex
 			Params.BodyHalfWidth = Tuning->BodySize.Y * 0.5f;
 			Params.DriftMinTurn = Tuning->DriftMinTurn;
 			Params.DriftYawMultiplier = Tuning->DriftYawMultiplier;
+			Params.DriftGrip = Tuning->DriftGrip * Vehicle->GetStats()->GetModifiers().Grip;
 
-			// Full-lock turn rate at this speed: the same curve lookup the car's own physics does.
-			float SteeringBySpeed = 1.f;
-			if (SteeringBySpeedSamples.Num() == AISteeringSamples && Params.TopSpeed > UE_KINDA_SMALL_NUMBER)
-			{
-				const float ForwardSpeed = FMath::Abs(static_cast<float>(FVector::DotProduct(Context.Velocity, Context.Rotation.GetForwardVector())));
-				const float Position = FMath::Clamp(ForwardSpeed / Params.TopSpeed / AISteeringSampleRange, 0.f, 1.f) * (AISteeringSamples - 1);
-				const int32 Index = FMath::Min(FMath::FloorToInt32(Position), AISteeringSamples - 2);
-				SteeringBySpeed = FMath::Lerp(SteeringBySpeedSamples[Index], SteeringBySpeedSamples[Index + 1], Position - Index);
-			}
-			Params.MaxYawRate = FMath::DegreesToRadians(Tuning->MaxYawRate) * Vehicle->GetStats()->GetModifiers().Steering * SteeringBySpeed;
+			// Steering: the sim looks up the full-lock turn rate at any speed, like the car's own physics.
+			Params.FullYawRate = FMath::DegreesToRadians(Tuning->MaxYawRate) * Vehicle->GetStats()->GetModifiers().Steering;
+			Params.SteeringBySpeed = SteeringBySpeedSamples;
+			Params.SteeringSampleRange = AISteeringSampleRange;
 		}
 	}
 	if (Track.IsValid())
@@ -254,6 +250,7 @@ FRaceAIDriverParams ARaceAIController::BuildParams(const FVehicleStepInputContex
 	const float Courage = 1.f + Personality.Courage * Data->CornerCourageSpread;
 	Params.TopSpeedFactor = FMath::Max(Data->TopSpeedFactor - Personality.Pace * Data->TopSpeedSpread, MinTopSpeedFactor);
 	Params.CornerAcceleration = Data->CornerAcceleration * Courage;
+	Params.CornerSteeringShare = FMath::Clamp(Data->CornerSteeringShare * Courage, MinCornerSteeringShare, 1.f);
 	Params.PlannedBraking = Data->PlannedBraking * Courage;
 	Params.ApexOffset = Data->ApexOffset;
 	Params.ApexFullCurvature = Data->ApexFullCurvature;
@@ -263,6 +260,7 @@ FRaceAIDriverParams ARaceAIController::BuildParams(const FVehicleStepInputContex
 	Params.bUseDrift = Data->bUseDrift;
 	Params.DriftMinCurvature = Data->DriftMinCurvature;
 	Params.DriftMaxSlipAngle = Data->DriftMaxSlipAngle;
+	Params.DriftMinCornerTime = Data->DriftMinCornerTime;
 	Params.BoostMaxCurvature = Data->BoostMaxCurvature;
 	const bool bHugsWalls = Data->WallHugClearance > 0.f && Personality.WallHugDraw < Data->WallHugShare;
 	Params.WallHugClearance = bHugsWalls ? Data->WallHugClearance + Personality.WallCaution * Data->WallHugClearanceSpread : 0.f;

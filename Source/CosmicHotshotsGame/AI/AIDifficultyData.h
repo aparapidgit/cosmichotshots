@@ -30,6 +30,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Pace", meta = (ClampMin = "100.0"))
 	float CornerAcceleration = 1800.f;
 
+	/**
+	 * Share of the car's full steering lock the driver plans its corner speeds with. A corner too tight to
+	 * be turned at speed with that much lock (a hairpin) is braked for. Lower = slower through tight corners.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Pace", meta = (ClampMin = "0.2", ClampMax = "1.0"))
+	float CornerSteeringShare = 0.75f;
+
 	/** Deceleration (cm/s^2) the driver plans its braking with. Lower = brakes earlier. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Pace", meta = (ClampMin = "100.0"))
 	float PlannedBraking = 2000.f;
@@ -79,6 +86,10 @@ public:
 	/** Corners at least this sharp (curvature, 1 / radius in cm) are drifted. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drift and boost", meta = (EditCondition = "bUseDrift", ClampMin = "0.00001"))
 	float DriftMinCurvature = 0.00012f;
+
+	/** Only corners that last at least this long (s at the current speed) are drifted: no drifting through a quick chicane. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drift and boost", meta = (EditCondition = "bUseDrift", ClampMin = "0.0"))
+	float DriftMinCornerTime = 1.2f;
 
 	/** Slide angle (degrees) the driver tries to stay under in a drift. Past the car's critical angle it would lose control. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drift and boost", meta = (EditCondition = "bUseDrift", ClampMin = "5.0", ClampMax = "90.0"))

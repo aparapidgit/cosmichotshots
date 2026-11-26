@@ -43,14 +43,27 @@ namespace
 	constexpr float LineLookaheadBase = 1500.f;
 	constexpr float LineLookaheadTime = 2.f;
 	constexpr float LineLookaheadStep = 1000.f;
-	// Wall hugging: only where the track ahead (and just behind) turns smoothly; a wall with a kink is given room.
-	constexpr float WallHugMaxCurvature = 0.00007f;
+	// Wall hugging: only where the wall is smooth; a kink is given room.
+	// A wall is smooth where the track's turn changes little from one sample (step, cm) to the next, from a
+	// little behind the car to speed x time ahead. A jump (a kinked wall, or the start or end of a corner)
+	// is given room. Walls of corners sharper than the absolute limit are not hugged at all.
+	constexpr float WallHugMaxCurvatureStep = 0.000025f;
+	constexpr float WallHugMaxCurvature = 0.00012f;
 	constexpr float WallHugLookBehind = 1000.f;
+	constexpr float WallHugLookAheadTime = 1.f;
+	constexpr float WallHugSampleStep = 1000.f;
 	/** The last stretch (cm) towards the wall is closed slowly (cm/s), so the car does not overshoot into it. */
 	constexpr float WallHugApproachDistance = 300.f;
 	constexpr float WallHugApproachSpeed = 120.f;
 	/** Where the wall has a kink the driver stays this much (cm) further away from it than its hugging line. */
 	constexpr float WallKinkRoom = 200.f;
+	/** A line change slows down on arrival with this deceleration (cm/s^2), never below the minimum speed (cm/s). */
+	constexpr float LineChangeDeceleration = 500.f;
+	constexpr float LineChangeMinSpeed = 40.f;
+	/** In a corner that needs braking the driver cuts to the inside once the track under it turns at least this share of the corner's sharpest turn. */
+	constexpr float TightCornerInsideShare = 0.5f;
+	/** On the way into such a corner the driver sits this share of the usable half width to the inside of the middle. */
+	constexpr float TightCornerEntryShare = 0.2f;
 	/** The driver changes sides once the track ahead calls for the other side with at least this share of a full commitment. */
 	constexpr float LineSideKeepShare = 0.5f;
 	/** Along the wall a steady error in the gap is trimmed out: cm of aim shift per second per cm of error, up to a limit (cm). */
@@ -112,6 +125,8 @@ namespace
 	constexpr float DriftKeepCurvatureShare = 0.75f;
 	/** Degrees of slide past the driver's limit that push the steering fully against the drift. */
 	constexpr float DriftSlipCorrectionBand = 5.f;
+	/** A drift starts only where the corner needs this much more turn than a drift's minimum turn rate. */
+	constexpr float DriftTightnessMargin = 1.4f;
 	/** This close (degrees) to the car's critical angle the drift button is let go. */
 	constexpr float DriftCriticalMargin = 3.f;
 
@@ -132,6 +147,36 @@ namespace
 	constexpr float BoostMaxAimAngle = 8.f;
 	/** A running boost is kept until the meter is this low. */
 	constexpr float BoostStopCharge = 0.02f;
+}
+
+float FRaceAIDriverParams::GetYawRateAtSpeed(float Speed) const
+{
+	if (SteeringBySpeed.Num() < 2 || TopSpeed <= UE_KINDA_SMALL_NUMBER)
+	{
+		return FullYawRate;
+	}
+	// The same lookup the car's own physics does (FHoverSimParams::GetSteeringMultiplier).
+	const float Position = FMath::Clamp(FMath::Abs(Speed) / TopSpeed / SteeringSampleRange, 0.f, 1.f) * (SteeringBySpeed.Num() - 1);
+	const int32 Index = FMath::Min(FMath::FloorToInt32(Position), SteeringBySpeed.Num() - 2);
+	return FullYawRate * FMath::Lerp(SteeringBySpeed[Index], SteeringBySpeed[Index + 1], Position - Index);
+}
+
+namespace
+{
+	/**
+	 * Fastest speed (cm/s) at which the car can still turn a corner of this curvature with the given share of
+	 * its steering lock. The lock's turn rate depends on the speed itself, so it is found in a few rounds.
+	 */
+	float SteeringLimitedSpeed(const FRaceAIDriverParams& Params, float Curvature, float TopSpeed)
+	{
+		constexpr int32 Rounds = 4;
+		float Speed = TopSpeed;
+		for (int32 Round = 0; Round < Rounds; ++Round)
+		{
+			Speed = FMath::Min(Params.CornerSteeringShare * Params.GetYawRateAtSpeed(Speed) / Curvature, TopSpeed);
+		}
+		return Speed;
+	}
 }
 
 FVehicleInputState FRaceAIDriverSim::Step(const FTrackSplineTable& Track, const FRaceAIDriverParams& Params,
@@ -193,19 +238,25 @@ FVehicleInputState FRaceAIDriverSim::Step(const FTrackSplineTable& Track, const 
 		{
 			continue;
 		}
-		HazardSpeed = FMath::Min(HazardSpeed, FMath::Sqrt(Params.CornerAcceleration / Curvature + 2.f * Params.PlannedBraking * Ahead));
+		// Two limits on the corner's speed: the sideways acceleration the driver dares, and how tightly the
+		// car can steer at speed (what makes a hairpin a braking corner).
+		const float CornerSpeed = FMath::Min(FMath::Sqrt(Params.CornerAcceleration / Curvature), SteeringLimitedSpeed(Params, Curvature, TopTarget));
+		HazardSpeed = FMath::Min(HazardSpeed, FMath::Sqrt(CornerSpeed * CornerSpeed + 2.f * Params.PlannedBraking * Ahead));
 	}
 
 	// --- Line: towards the inside of the corner ahead (right-hand turn = positive curvature = right side).
 	const float LineLookahead = LineLookaheadBase + Speed * LineLookaheadTime;
 	float CurvatureSum = 0.f;
-	float SharpestAhead = FMath::Abs(Track.GetCurvatureAtDistance(Distance - WallHugLookBehind));
+	float SharpestSigned = 0.f;
 	int32 CurvatureSamples = 0;
 	for (float Ahead = 0.f; Ahead <= LineLookahead; Ahead += LineLookaheadStep, ++CurvatureSamples)
 	{
 		const float Curvature = Track.GetCurvatureAtDistance(Distance + Ahead);
 		CurvatureSum += Curvature;
-		SharpestAhead = FMath::Max(SharpestAhead, FMath::Abs(Curvature));
+		if (FMath::Abs(Curvature) > FMath::Abs(SharpestSigned))
+		{
+			SharpestSigned = Curvature;
+		}
 	}
 	// A driver that hugs walls stays committed to the side of the last corner (also down the straight that
 	// follows) until the track ahead clearly calls for the other side, or for more of this one.
@@ -222,10 +273,36 @@ FVehicleInputState FRaceAIDriverSim::Step(const FTrackSplineTable& Track, const 
 	const float HugSide = InsideAmount > 0.f ? 1.f : -1.f;
 	const float HugLateral = HugSide * FMath::Max(Params.TrackHalfWidth - Params.BodyHalfWidth - Params.WallHugClearance, 0.f);
 	const bool bAtWall = Params.WallHugClearance > 0.f && FMath::Abs(InsideAmount) >= 1.f;
-	bool bHug = bAtWall && SharpestAhead <= WallHugMaxCurvature && State.Mistake != ERaceAIMistake::Wide;
+	bool bSmoothWall = true;
+	if (bAtWall)
+	{
+		float PreviousCurvature = Track.GetCurvatureAtDistance(Distance - WallHugLookBehind);
+		for (float Ahead = -WallHugLookBehind + WallHugSampleStep; Ahead <= Speed * WallHugLookAheadTime && bSmoothWall; Ahead += WallHugSampleStep)
+		{
+			const float Curvature = Track.GetCurvatureAtDistance(Distance + Ahead);
+			bSmoothWall = FMath::Abs(Curvature - PreviousCurvature) <= WallHugMaxCurvatureStep && FMath::Abs(Curvature) <= WallHugMaxCurvature;
+			PreviousCurvature = Curvature;
+		}
+	}
+	bool bHug = bAtWall && bSmoothWall && State.Mistake != ERaceAIMistake::Wide;
 	if (bAtWall)
 	{
 		DesiredLateral = bHug ? HugLateral : HugLateral - HugSide * WallKinkRoom;
+	}
+	// A corner too tight to steer round at cruise speed pushes the car wide whatever the driver does, so it
+	// needs room on the OUTSIDE: the driver comes in a little inside of the middle and aims for the inside
+	// once it is in the corner. (Coming in from the outside ends on the outside wall.)
+	const float HereCurvature = Track.GetCurvatureAtDistance(Distance);
+	const bool bTightAhead = FMath::Abs(SharpestSigned) > StraightCurvature
+		&& SteeringLimitedSpeed(Params, FMath::Abs(SharpestSigned), CruiseSpeed) < CruiseSpeed;
+	if (bTightAhead)
+	{
+		const float CornerSide = SharpestSigned > 0.f ? 1.f : -1.f;
+		const bool bInCorner = HereCurvature * CornerSide >= FMath::Abs(SharpestSigned) * TightCornerInsideShare;
+		const float InsideOffset = FMath::Min(Params.ApexOffset, Params.UsableHalfWidth);
+		DesiredLateral = CornerSide * (bInCorner ? InsideOffset : Params.UsableHalfWidth * TightCornerEntryShare);
+		State.LineSide = CornerSide;
+		bHug = false;
 	}
 	if (State.Mistake == ERaceAIMistake::Wide)
 	{
@@ -403,8 +480,12 @@ FVehicleInputState FRaceAIDriverSim::Step(const FTrackSplineTable& Track, const 
 	State.bHuggingWall = bHug;
 	const bool bFinalApproach = bHug && FMath::Abs(DesiredLateral - State.TargetLateral) < WallHugApproachDistance;
 	const float PreviousTargetLateral = State.TargetLateral;
-	State.TargetLateral = FMath::FInterpConstantTo(State.TargetLateral, DesiredLateral, Input.DeltaTime,
-		bFinalApproach ? FMath::Min(WallHugApproachSpeed, Params.LineChangeSpeed) : Params.LineChangeSpeed);
+	// The line moves sideways at the driver's line-change speed and slows down as it arrives (a line that
+	// stopped dead would leave the car, still moving sideways, to overshoot it by metres).
+	const float LineRemaining = FMath::Abs(DesiredLateral - State.TargetLateral);
+	const float ArrivalSpeed = FMath::Max(FMath::Sqrt(2.f * LineChangeDeceleration * LineRemaining), LineChangeMinSpeed);
+	const float LineSpeed = FMath::Min(bFinalApproach ? FMath::Min(WallHugApproachSpeed, Params.LineChangeSpeed) : Params.LineChangeSpeed, ArrivalSpeed);
+	State.TargetLateral = FMath::FInterpConstantTo(State.TargetLateral, DesiredLateral, Input.DeltaTime, LineSpeed);
 	if (bCarAlongside && LeftLimit <= RightLimit)
 	{
 		// Never plan a line through the car alongside, not even on the way to the wanted one.
@@ -484,14 +565,26 @@ FVehicleInputState FRaceAIDriverSim::Step(const FTrackSplineTable& Track, const 
 		const float DriftCurvature = Track.GetCurvatureAtDistance(Distance + Speed * DriftLookaheadTime);
 		const float DriftSide = DriftCurvature > 0.f ? 1.f : -1.f;
 		const bool bTooMuchSlide = FMath::Abs(SlipAngle) > Params.DriftCriticalSlipAngle - DriftCriticalMargin;
+		// The corner must last: a drift through a quick chicane only throws the car at the next wall.
+		const float LaterCurvature = Track.GetCurvatureAtDistance(Distance + Speed * Params.DriftMinCornerTime);
+		const bool bCornerLasts = LaterCurvature * DriftSide >= Params.DriftMinCurvature * DriftKeepCurvatureShare;
+		// A drifting car turns by itself, at least at the drift's minimum rate: in a corner gentler than that
+		// it would spiral into the inside wall. Drift only where the corner needs more turn than that.
+		const float DriftMinYawRate = Params.DriftMinTurn * Params.DriftYawMultiplier * Params.GetYawRateAtSpeed(ForwardSpeed);
+		const bool bTightEnough = Speed * FMath::Abs(DriftCurvature) >= DriftMinYawRate * DriftTightnessMargin;
+		// A drift settles at a slide angle of about (turn rate / drift grip). Where that is more than the driver
+		// dares, the corner is too fast for a drift: the car would slide into the outside wall.
+		const float SettledSlip = FMath::RadiansToDegrees(Speed * FMath::Abs(DriftCurvature) / FMath::Max(Params.DriftGrip, UE_KINDA_SMALL_NUMBER));
+		const bool bSlowEnough = SettledSlip <= Params.DriftMaxSlipAngle;
 		if (State.DriftHeld == 0.f)
 		{
-			if (FMath::Abs(DriftCurvature) >= Params.DriftMinCurvature && !bTooMuchSlide)
+			if (FMath::Abs(DriftCurvature) >= Params.DriftMinCurvature && bCornerLasts && bTightEnough && bSlowEnough && !bTooMuchSlide)
 			{
 				State.DriftHeld = DriftSide;
 			}
 		}
-		else if (DriftSide != State.DriftHeld || FMath::Abs(DriftCurvature) < Params.DriftMinCurvature * DriftKeepCurvatureShare || bTooMuchSlide)
+		else if (DriftSide != State.DriftHeld || FMath::Abs(DriftCurvature) < Params.DriftMinCurvature * DriftKeepCurvatureShare || bTooMuchSlide
+			|| Speed * FMath::Abs(DriftCurvature) < DriftMinYawRate)
 		{
 			State.DriftHeld = 0.f;
 		}
@@ -504,7 +597,7 @@ FVehicleInputState FRaceAIDriverSim::Step(const FTrackSplineTable& Track, const 
 	Out.bDriftLeft = State.DriftHeld < 0.f;
 
 	// --- Steering: the lock that gives the wanted turn rate with this car at this speed, moved at a limited rate.
-	const float YawAuthority = FMath::Max(Params.MaxYawRate, UE_KINDA_SMALL_NUMBER);
+	const float YawAuthority = FMath::Max(Params.GetYawRateAtSpeed(ForwardSpeed), UE_KINDA_SMALL_NUMBER);
 	float WantedSteer = FMath::Clamp(WantedYawRate / YawAuthority, -1.f, 1.f);
 	const bool bDrifting = State.DriftHeld != 0.f && Input.DriftDirection == State.DriftHeld;
 	if (bDrifting)

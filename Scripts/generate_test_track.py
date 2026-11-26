@@ -22,6 +22,10 @@ WHAT IT BUILDS (all engine basic cubes, no assets needed):
 Track layout: long start straight with a hill right after the line, wide
 sweeper, medium corner, S-kink, chicane, long left-hand return.
 
+OTHER TRACKS use the same code: a script imports this module, replaces the layout settings below
+(PATH or CTRL, TRACK_WIDTH_M, SAMPLE_STEP_M, SEGMENT_OVERLAP, HILLS, ITEM_BOX_*, FOLDER) and calls
+build_in_unreal() in its own map. See create_track_corners.py.
+
 You can also run this file OUTSIDE Unreal (plain Python 3): it then only
 writes test_track_centerline.csv (x,y,z in Unreal units) which Claude Code can
 use to build a real spline-based track later.
@@ -73,6 +77,13 @@ CTRL = [
     (150, 0),
 ]
 
+# Alternative to CTRL (used when not None): the centre line as straight lines and circular arcs, starting at
+# the start line at (0, 0) heading +x. ("line", length_m) or ("arc", radius_m, angle_deg); a positive angle
+# turns right. The path must end where it starts, heading the same way (build_centerline checks it).
+PATH = None
+PATH_DENSE_STEP_M = 0.5
+PATH_CLOSE_TOLERANCE_M = 0.5
+
 
 # ------------------------------------------------------------ pure geometry
 def _catmull(p0, p1, p2, p3, t):
@@ -84,16 +95,49 @@ def _catmull(p0, p1, p2, p3, t):
         for i in range(2))
 
 
+def _trace_path():
+    """Dense points along PATH (lines and arcs), the last point back on the first one."""
+    x, y, heading = 0.0, 0.0, 0.0
+    dense = [(x, y)]
+    for segment in PATH:
+        if segment[0] == "line":
+            count = max(1, int(round(segment[1] / PATH_DENSE_STEP_M)))
+            step = segment[1] / count
+            for _ in range(count):
+                x += step * math.cos(heading)
+                y += step * math.sin(heading)
+                dense.append((x, y))
+        else:
+            radius, angle = segment[1], math.radians(segment[2])
+            count = max(1, int(round(abs(radius * angle) / PATH_DENSE_STEP_M)))
+            turn = angle / count
+            chord = 2.0 * radius * math.sin(abs(turn) / 2.0)
+            for _ in range(count):
+                x += chord * math.cos(heading + turn / 2.0)
+                y += chord * math.sin(heading + turn / 2.0)
+                heading += turn
+                dense.append((x, y))
+    gap = math.hypot(x, y)
+    turned = math.degrees(heading)
+    if gap > PATH_CLOSE_TOLERANCE_M or abs(abs(turned) - 360.0) > 0.01:
+        raise ValueError("PATH does not close: ends %.2f m from the start after turning %.2f degrees" % (gap, turned))
+    dense[-1] = dense[0]
+    return dense
+
+
 def build_centerline():
     """Returns list of (x_m, y_m, z_m) evenly spaced by SAMPLE_STEP_M, closed loop
     (last point is NOT a duplicate of the first), plus lap length in meters."""
-    n = len(CTRL)
-    dense = []
-    for i in range(n):
-        p0, p1, p2, p3 = CTRL[(i - 1) % n], CTRL[i], CTRL[(i + 1) % n], CTRL[(i + 2) % n]
-        for k in range(60):
-            dense.append(_catmull(p0, p1, p2, p3, k / 60.0))
-    dense.append(dense[0])
+    if PATH is not None:
+        dense = _trace_path()
+    else:
+        n = len(CTRL)
+        dense = []
+        for i in range(n):
+            p0, p1, p2, p3 = CTRL[(i - 1) % n], CTRL[i], CTRL[(i + 1) % n], CTRL[(i + 2) % n]
+            for k in range(60):
+                dense.append(_catmull(p0, p1, p2, p3, k / 60.0))
+        dense.append(dense[0])
     cum = [0.0]
     for a, b in zip(dense, dense[1:]):
         cum.append(cum[-1] + math.hypot(b[0] - a[0], b[1] - a[1]))
@@ -272,6 +316,8 @@ def place_track_spline(sub, pts):
                                 unreal.SplineCoordinateSpace.WORLD, False)
     spline.set_closed_loop(True, False)
     spline.update_spline()
+    # Centre line to wall: the race tracker and the computer drivers read the track width from here.
+    actor.set_editor_property("track_half_width", TRACK_WIDTH_M * 0.5 * UU)
     unreal.log("TestTrack: track spline with %d points, length %.0f m"
                % (spline.get_number_of_spline_points(), spline.get_spline_length() / UU))
     return actor

@@ -5,8 +5,9 @@
 //  - follows the track line with a sideways offset: towards the inside of corners, plus a
 //    small personal offset so the field spreads out; a driver that dares runs right along
 //    the inside wall, which charges the boost meter (close pass);
-//  - reads the curvature of the track ahead, picks a speed for every corner and brakes early
-//    enough to reach it;
+//  - reads the curvature of the track ahead, picks a speed for every corner (also from how tightly
+//    the car can steer at that speed) and brakes early enough to reach it; a corner too tight
+//    for its speed is entered from just inside the middle, leaving room to run wide;
 //  - goes around a slower car ahead on a side it commits to (the inside of the next corner if it is
 //    aggressive enough and there is room), boosts past it, or slows down when there is no room;
 //  - knows about a car alongside and keeps to its own side of it;
@@ -54,11 +55,23 @@ struct FRaceAIDriverParams
 	/** The car's top speed (cm/s) and usable half width of the track for its centre (cm). */
 	float TopSpeed = 4700.f;
 	float UsableHalfWidth = 1250.f;
-	/** Turn rate (radians per second) the car reaches with full steering at its current speed. */
-	float MaxYawRate = 1.f;
+	/**
+	 * Steering: the car's full-lock turn rate (radians per second) before its steering-by-speed curve, and
+	 * that curve sampled evenly over speed / top speed = 0 .. SteeringSampleRange (empty = no curve).
+	 */
+	float FullYawRate = 1.f;
+	TConstArrayView<float> SteeringBySpeed;
+	float SteeringSampleRange = 1.5f;
+	/** Share of the full lock the driver plans its corner speeds with. */
+	float CornerSteeringShare = 0.75f;
+
+	/** Full-lock turn rate (radians per second) at a speed (cm/s). */
+	float GetYawRateAtSpeed(float Speed) const;
 	/** In a drift: share of the full turn the car makes with the steering fully against it, and the drift's turn multiplier. */
 	float DriftMinTurn = 0.35f;
 	float DriftYawMultiplier = 1.3f;
+	/** Sideways grip of the car while it drifts (1/s). */
+	float DriftGrip = 2.f;
 	/** The driver leaves its line by at most this much (cm) to collect an item box. */
 	float ItemBoxMaxSidestep = 1100.f;
 	/** Centre line to wall (cm) and half the width of the car's body (cm). */
@@ -81,6 +94,7 @@ struct FRaceAIDriverParams
 	bool bUseDrift = false;
 	float DriftMinCurvature = 0.00012f;
 	float DriftMinSpeed = 2200.f;
+	float DriftMinCornerTime = 1.2f;
 	float DriftMaxSlipAngle = 22.f;
 	/** The car's own limit (degrees): a drift past it becomes an uncontrolled slide. */
 	float DriftCriticalSlipAngle = 30.f;
