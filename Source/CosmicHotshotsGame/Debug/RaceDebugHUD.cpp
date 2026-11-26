@@ -18,8 +18,8 @@
 namespace
 {
 	TAutoConsoleVariable<int32> CVarBoostBar(
-		TEXT("ch.Debug.BoostBar"), 1,
-		TEXT("1 = draw the dev boost meter bar at the bottom of the screen."),
+		TEXT("ch.Debug.BoostBar"), 0,
+		TEXT("1 = draw the dev boost meter bar with speed and inputs at the bottom of the screen (the race HUD has the Energy Core meter)."),
 		ECVF_Cheat);
 
 	// Layout as fractions of the viewport, so the bar fits any resolution and split-screen viewport.

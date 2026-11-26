@@ -56,6 +56,7 @@
 #   Single Race setup (3 rivals, 2 laps, Hard, no item boxes; "rivals:laps:difficulty:items", fixed draw of the rivals' characters):
 #                     -Map "/Game/Maps/MainMenu" -SkipMenus 0 -Countdown 3 -Seconds 170 -LogInterval 30 -TimeoutSeconds 520 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Test.AutoMenu SingleRace,ch.Test.AutoSelectCharacter 4,ch.Test.AutoSetup 3:2:2:0,ch.Race.AICharacterSeed 7"
 #                     (FLOW single race line with the setup; 4 RESULT lines with laps=2; no ITEM lines)
+#   RACE_SETUP prints the tuning's default lap count; RACE_START (first physics step) prints the laps the race really has.
 #   Menus and pause need a window, so they are not run by this script: start UnrealEditor.exe <project> <map> -game -windowed with
 #   -ExecCmds "...,ch.Test.MenuKeys 5@P/6@Down/6.5@Enter,ch.Test.WallScreenshotTime 9,ch.Test.WallQuitTime 11" (UTestDriverSubsystem:
 #   keys through Slate, wall-clock screenshot and quit that also work while paused). Add "ch.Settings.Slot TestSettings" (or

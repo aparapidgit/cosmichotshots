@@ -59,6 +59,13 @@ private:
 	UFUNCTION()
 	void HandleRaceFinished(const FRaceResultData& Results);
 
+	/** Show / hide HUD button: flips this player's HUD flag (saved with the player's settings). */
+	void HandleToggleHudPressed();
+
+	/** This player's race HUD. */
+	UPROPERTY(Transient)
+	TObjectPtr<class URaceHudWidget> HudWidget;
+
 	/** Pause button: pauses the game and opens the pause menu, while a race is running and no other screen is up. */
 	void HandlePausePressed();
 

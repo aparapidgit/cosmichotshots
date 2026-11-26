@@ -104,7 +104,9 @@ void URaceTrackerComponent::BeginPlay()
 	CountdownSeconds = Tuning->CountdownSeconds;
 	BuildCheckpoints();
 
-	UE_LOG(LogCosmicRace, Log, TEXT("RACE_SETUP lapLength=%.0f laps=%d checkpoints=%d"),
+	// The lap count here is only the tuning default; the race setup and ch.Race.Laps are known in the first
+	// physics step, which logs the real one (RACE_START).
+	UE_LOG(LogCosmicRace, Log, TEXT("RACE_SETUP lapLength=%.0f defaultLaps=%d checkpoints=%d"),
 		Track->GetLapLength(), Params.NumLaps, Params.CheckpointDistances.Num());
 
 	// The game mode may spawn cars in its pre-physics tick (test dummy); register them in the same frame.
@@ -271,6 +273,18 @@ void URaceTrackerComponent::AsyncPhysicsTickComponent(float DeltaTime, float Sim
 		CountdownStepsRemaining = DeltaTime > 0.f ? FMath::RoundToInt32(Countdown / DeltaTime) : 0;
 		bHasCountdown = CountdownStepsRemaining > 0;
 		RaceStartSimTime = SimTime + CountdownStepsRemaining * DeltaTime;
+
+		if (!bWaitingForSetup)
+		{
+			int32 StartLaps = Params.NumLaps;
+#if !UE_BUILD_SHIPPING
+			if (CosmicHotshots::RaceCVars::Laps.GetValueOnAnyThread() > 0)
+			{
+				StartLaps = CosmicHotshots::RaceCVars::Laps.GetValueOnAnyThread();
+			}
+#endif
+			UE_LOG(LogCosmicRace, Log, TEXT("RACE_START laps=%d countdown=%.3f"), StartLaps, CountdownStepsRemaining * DeltaTime);
+		}
 	}
 
 	if (bWaitingForSetup)

@@ -16,6 +16,25 @@ class APlayerController;
 class UCameraTuningData;
 class URaceCameraComponent;
 
+/**
+ * The parts of the race HUD a player can switch off one by one in Options.
+ * Adding an indicator = one value here (before Count), its name in GetHudElementName and its widget in the HUD.
+ * Saved as bits by value: never reorder or reuse values.
+ */
+UENUM(BlueprintType)
+enum class EHudElement : uint8
+{
+	Standings,
+	PlaceAndLap,
+	ItemSlot,
+	ActiveEffects,
+	PassiveIndicator,
+	EnergyCore,
+	/** The "holds an item" mark next to a racer in the standings. */
+	StandingsItemMarker,
+	Count UMETA(Hidden),
+};
+
 /** Strength of an optional effect (camera shake, speed lines). */
 UENUM(BlueprintType)
 enum class EEffectIntensity : uint8
@@ -39,6 +58,14 @@ struct FPlayerSettingsData
 
 	UPROPERTY(BlueprintReadOnly, Category = "Camera")
 	EEffectIntensity SpeedLines = EEffectIntensity::Normal;
+
+	/** The show / hide HUD button. Remembered between races. */
+	UPROPERTY(BlueprintReadOnly, Category = "HUD")
+	bool bHudVisible = true;
+
+	/** HUD elements switched off in Options: one bit per EHudElement value. Everything is on by default. */
+	UPROPERTY(BlueprintReadOnly, Category = "HUD")
+	int32 HiddenHudElements = 0;
 };
 
 /** The save file of one local player's settings. */
@@ -70,6 +97,20 @@ public:
 	void SetBaseFov(float InBaseFov);
 	void SetCameraShake(EEffectIntensity Intensity);
 	void SetSpeedLines(EEffectIntensity Intensity);
+
+	/** The show / hide HUD button state. It never changes the Options toggles. */
+	bool IsHudVisible();
+	void SetHudVisible(bool bVisible);
+
+	/** The Options toggle of one HUD element. It never changes the button state. */
+	bool IsHudElementEnabled(EHudElement Element);
+	void SetHudElementEnabled(EHudElement Element, bool bEnabled);
+
+	/** The visibility rule: an element is drawn only when the HUD is shown AND its Options toggle is on. */
+	bool IsHudElementDrawn(EHudElement Element);
+
+	/** Name of a HUD element for the Options screen. */
+	static FText GetHudElementName(EHudElement Element);
 
 	/** Hands the camera settings to a race camera (call when this player gets a vehicle). */
 	void ApplyToCamera(URaceCameraComponent* Camera);

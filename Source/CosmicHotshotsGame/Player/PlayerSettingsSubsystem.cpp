@@ -12,6 +12,8 @@
 #include "Misc/App.h"
 #include "Vehicle/RaceVehicle.h"
 
+#define LOCTEXT_NAMESPACE "PlayerSettings"
+
 namespace
 {
 	TAutoConsoleVariable<int32> CVarSettingsPersist(
@@ -69,8 +71,9 @@ void UPlayerSettingsSubsystem::EnsureLoaded()
 	if (const UPlayerSettingsSave* Save = Cast<UPlayerSettingsSave>(UGameplayStatics::LoadGameFromSlot(SlotName, SettingsSaveUserIndex)))
 	{
 		Settings = Save->Settings;
-		UE_LOG(LogCosmicRace, Log, TEXT("SETTINGS loaded %s: fov=%.0f shake=%d speedLines=%d"),
-			*SlotName, Settings.BaseFov, static_cast<int32>(Settings.CameraShake), static_cast<int32>(Settings.SpeedLines));
+		UE_LOG(LogCosmicRace, Log, TEXT("SETTINGS loaded %s: fov=%.0f shake=%d speedLines=%d hud=%d hudHidden=%d"),
+			*SlotName, Settings.BaseFov, static_cast<int32>(Settings.CameraShake), static_cast<int32>(Settings.SpeedLines),
+			Settings.bHudVisible ? 1 : 0, Settings.HiddenHudElements);
 	}
 }
 
@@ -110,6 +113,61 @@ void UPlayerSettingsSubsystem::SetSpeedLines(EEffectIntensity Intensity)
 	HandleSettingsChanged();
 }
 
+bool UPlayerSettingsSubsystem::IsHudVisible()
+{
+	EnsureLoaded();
+	return Settings.bHudVisible;
+}
+
+void UPlayerSettingsSubsystem::SetHudVisible(bool bVisible)
+{
+	EnsureLoaded();
+	Settings.bHudVisible = bVisible;
+	HandleSettingsChanged();
+}
+
+bool UPlayerSettingsSubsystem::IsHudElementEnabled(EHudElement Element)
+{
+	EnsureLoaded();
+	return (Settings.HiddenHudElements & (1 << static_cast<int32>(Element))) == 0;
+}
+
+void UPlayerSettingsSubsystem::SetHudElementEnabled(EHudElement Element, bool bEnabled)
+{
+	EnsureLoaded();
+	const int32 Bit = 1 << static_cast<int32>(Element);
+	Settings.HiddenHudElements = bEnabled ? (Settings.HiddenHudElements & ~Bit) : (Settings.HiddenHudElements | Bit);
+	HandleSettingsChanged();
+}
+
+bool UPlayerSettingsSubsystem::IsHudElementDrawn(EHudElement Element)
+{
+	return IsHudVisible() && IsHudElementEnabled(Element);
+}
+
+FText UPlayerSettingsSubsystem::GetHudElementName(EHudElement Element)
+{
+	switch (Element)
+	{
+	case EHudElement::Standings:
+		return LOCTEXT("HudStandings", "Standings");
+	case EHudElement::PlaceAndLap:
+		return LOCTEXT("HudPlaceAndLap", "Place and lap");
+	case EHudElement::ItemSlot:
+		return LOCTEXT("HudItemSlot", "Item slot");
+	case EHudElement::ActiveEffects:
+		return LOCTEXT("HudActiveEffects", "Active effects");
+	case EHudElement::PassiveIndicator:
+		return LOCTEXT("HudPassive", "Passive indicator");
+	case EHudElement::EnergyCore:
+		return LOCTEXT("HudEnergyCore", "Energy Core meter");
+	case EHudElement::StandingsItemMarker:
+		return LOCTEXT("HudItemMarker", "Item marker in standings");
+	default:
+		return FText::GetEmpty();
+	}
+}
+
 float UPlayerSettingsSubsystem::ToScale(EEffectIntensity Intensity) const
 {
 	switch (Intensity)
@@ -143,8 +201,9 @@ void UPlayerSettingsSubsystem::HandleSettingsChanged()
 		Save->Settings = Settings;
 		const FString SlotName = GetSlotName();
 		const bool bSaved = UGameplayStatics::SaveGameToSlot(Save, SlotName, SettingsSaveUserIndex);
-		UE_LOG(LogCosmicRace, Log, TEXT("SETTINGS saved %s: fov=%.0f shake=%d speedLines=%d ok=%d"),
-			*SlotName, Settings.BaseFov, static_cast<int32>(Settings.CameraShake), static_cast<int32>(Settings.SpeedLines), bSaved ? 1 : 0);
+		UE_LOG(LogCosmicRace, Log, TEXT("SETTINGS saved %s: fov=%.0f shake=%d speedLines=%d hud=%d hudHidden=%d ok=%d"),
+			*SlotName, Settings.BaseFov, static_cast<int32>(Settings.CameraShake), static_cast<int32>(Settings.SpeedLines),
+			Settings.bHudVisible ? 1 : 0, Settings.HiddenHudElements, bSaved ? 1 : 0);
 	}
 
 	// Live preview: the vehicle this player drives right now.
@@ -161,3 +220,5 @@ void UPlayerSettingsSubsystem::HandleSettingsChanged()
 		}
 	}
 }
+
+#undef LOCTEXT_NAMESPACE

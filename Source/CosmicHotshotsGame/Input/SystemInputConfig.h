@@ -1,4 +1,4 @@
-// System input config: Enhanced Input assets for actions that are not driving (pause; later the HUD toggle).
+// System input config: Enhanced Input assets for actions that are not driving (pause, show / hide HUD).
 // Kept apart from UDrivingInputConfig so driving bindings stay untouched when system actions are added.
 
 #pragma once
@@ -27,4 +27,8 @@ public:
 	/** Press to open the pause menu during a race. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Actions")
 	TObjectPtr<UInputAction> Pause;
+
+	/** Press to show or hide this player's race HUD. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Actions")
+	TObjectPtr<UInputAction> ToggleHud;
 };

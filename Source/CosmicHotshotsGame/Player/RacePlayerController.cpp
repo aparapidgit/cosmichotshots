@@ -9,6 +9,13 @@
 #include "Player/PlayerSettingsSubsystem.h"
 #include "Race/RaceDebug.h"
 #include "UI/MenuScreens.h"
+#include "UI/RaceHudWidget.h"
+
+namespace
+{
+	/** The HUD is drawn under the start / finish overlay and under every menu screen. */
+	constexpr int32 HudZOrder = -1;
+}
 #include "UI/RaceScreens.h"
 
 #include "Item/ItemLootTable.h"
@@ -36,6 +43,10 @@ void ARacePlayerController::SetupInputComponent()
 	if (UEnhancedInputComponent* SystemEnhancedInput = Cast<UEnhancedInputComponent>(InputComponent); SystemEnhancedInput && SystemInput && SystemInput->Pause)
 	{
 		SystemEnhancedInput->BindAction(SystemInput->Pause, ETriggerEvent::Started, this, &ARacePlayerController::HandlePausePressed);
+	}
+	if (UEnhancedInputComponent* HudEnhancedInput = Cast<UEnhancedInputComponent>(InputComponent); HudEnhancedInput && SystemInput && SystemInput->ToggleHud)
+	{
+		HudEnhancedInput->BindAction(SystemInput->ToggleHud, ETriggerEvent::Started, this, &ARacePlayerController::HandleToggleHudPressed);
 	}
 
 	DrivingInput = GetDefault<UCosmicHotshotsSettings>()->DrivingInput.LoadSynchronous();
@@ -84,6 +95,15 @@ void ARacePlayerController::BeginPlay()
 	if (SystemInput && SystemInput->MappingContext)
 	{
 		InputSubsystem->AddMappingContext(SystemInput->MappingContext, SystemInput->MappingPriority);
+	}
+}
+
+void ARacePlayerController::HandleToggleHudPressed()
+{
+	if (UPlayerSettingsSubsystem* PlayerSettings = UPlayerSettingsSubsystem::Get(this))
+	{
+		PlayerSettings->SetHudVisible(!PlayerSettings->IsHudVisible());
+		UE_LOG(LogCosmicRace, Log, TEXT("HUD visible=%d"), PlayerSettings->IsHudVisible() ? 1 : 0);
 	}
 }
 
@@ -218,6 +238,10 @@ void ARacePlayerController::SetUpRaceScreens()
 
 	OverlayWidget = CreateWidget<URaceOverlayWidget>(this, URaceOverlayWidget::StaticClass());
 	OverlayWidget->AddToViewport();
+
+	// This player's HUD, on this player's part of the screen (split-screen ready), under the overlay and the menus.
+	HudWidget = CreateWidget<URaceHudWidget>(this, URaceHudWidget::StaticClass());
+	HudWidget->AddToPlayerScreen(HudZOrder);
 
 	if (bWaitingForSetup)
 	{

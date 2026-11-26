@@ -116,6 +116,21 @@ private:
 	int32 SpeedLinesRow = INDEX_NONE;
 };
 
+/**
+ * Options > HUD: one On / Off row per HUD element (EHudElement), all on by default. These toggles are
+ * independent of the show / hide HUD button: an element is drawn only when both allow it.
+ */
+UCLASS()
+class COSMICHOTSHOTSGAME_API UHudOptionsWidget : public URaceScreenWidget
+{
+	GENERATED_BODY()
+
+protected:
+	virtual void BuildScreen() override;
+	virtual void HandleButton(int32 ButtonIndex) override;
+	virtual void HandleOptionChanged(int32 ButtonIndex, int32 Value) override;
+};
+
 /** Pause menu of a race: Resume, Options, Restart, Main menu. The game is paused while it is open. */
 UCLASS()
 class COSMICHOTSHOTSGAME_API UPauseMenuWidget : public URaceScreenWidget

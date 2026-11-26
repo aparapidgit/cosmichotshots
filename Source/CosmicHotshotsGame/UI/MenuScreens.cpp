@@ -25,6 +25,7 @@ namespace
 
 	// Buttons of the Options screen.
 	constexpr int32 OptionsCameraButton = 0;
+	constexpr int32 OptionsHudButton = 1;
 
 	// Buttons of the pause menu, top to bottom.
 	constexpr int32 PauseResumeButton = 0;
@@ -212,6 +213,7 @@ void UOptionsWidget::BuildScreen()
 {
 	AddTitle(LOCTEXT("OptionsTitle", "OPTIONS"));
 	AddButton(LOCTEXT("OptionsCamera", "Camera"));
+	AddButton(LOCTEXT("OptionsHud", "HUD"));
 	AddButton(LOCTEXT("OptionsBack", "Back"));
 }
 
@@ -220,6 +222,10 @@ void UOptionsWidget::HandleButton(int32 ButtonIndex)
 	if (ButtonIndex == OptionsCameraButton)
 	{
 		OpenChildScreen(CreateScreen<UCameraOptionsWidget>());
+	}
+	else if (ButtonIndex == OptionsHudButton)
+	{
+		OpenChildScreen(CreateScreen<UHudOptionsWidget>());
 	}
 	else
 	{
@@ -303,6 +309,40 @@ void UCameraOptionsWidget::HandleOptionChanged(int32 ButtonIndex, int32 Value)
 }
 
 void UCameraOptionsWidget::HandleButton(int32 ButtonIndex)
+{
+	// The only plain button is Back.
+	GoBack();
+}
+
+// --- UHudOptionsWidget
+
+void UHudOptionsWidget::BuildScreen()
+{
+	AddTitle(LOCTEXT("HudTitle", "HUD"));
+
+	// One row per HUD element, in enum order: the row's button index IS the EHudElement value. Value 0 = off, 1 = on.
+	UPlayerSettingsSubsystem* Settings = UPlayerSettingsSubsystem::Get(GetOwningPlayer());
+	const TArray<FText> OnOffTexts = { LOCTEXT("HudOff", "Off"), LOCTEXT("HudOn", "On") };
+	for (int32 Index = 0; Index < static_cast<int32>(EHudElement::Count); ++Index)
+	{
+		const EHudElement Element = static_cast<EHudElement>(Index);
+		AddOptionRow(UPlayerSettingsSubsystem::GetHudElementName(Element), OnOffTexts, !Settings || Settings->IsHudElementEnabled(Element) ? 1 : 0);
+	}
+
+	AddLine(LOCTEXT("HudHint", "The show / hide HUD button (D-pad Up, H) hides the whole HUD and does not change these."), FLinearColor(0.7f, 0.7f, 0.7f, 1.f));
+	AddButton(LOCTEXT("HudBack", "Back"));
+}
+
+void UHudOptionsWidget::HandleOptionChanged(int32 ButtonIndex, int32 Value)
+{
+	UPlayerSettingsSubsystem* Settings = UPlayerSettingsSubsystem::Get(GetOwningPlayer());
+	if (Settings && ButtonIndex >= 0 && ButtonIndex < static_cast<int32>(EHudElement::Count))
+	{
+		Settings->SetHudElementEnabled(static_cast<EHudElement>(ButtonIndex), Value != 0);
+	}
+}
+
+void UHudOptionsWidget::HandleButton(int32 ButtonIndex)
 {
 	// The only plain button is Back.
 	GoBack();
