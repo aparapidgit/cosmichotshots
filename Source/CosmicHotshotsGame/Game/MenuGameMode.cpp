@@ -1,6 +1,8 @@
 #include "Game/MenuGameMode.h"
 
 #include "CosmicHotshotsGame.h"
+#include "Adventure/AdventureDefinitions.h"
+#include "Adventure/AdventureSubsystem.h"
 #include "Character/CharacterDefinition.h"
 #include "Game/CosmicHotshotsSettings.h"
 #include "Game/GameFlowSubsystem.h"
@@ -14,6 +16,9 @@ namespace
 {
 	/** Value of ch.Test.AutoMenu that starts a single race. */
 	const TCHAR* const AutoMenuSingleRace = TEXT("SingleRace");
+
+	/** Value of ch.Test.AutoMenu that starts an Adventure level. */
+	const TCHAR* const AutoMenuAdventure = TEXT("Adventure");
 
 	/** Value of ch.Test.AutoMenu that opens the race setup screen (for screenshots). */
 	const TCHAR* const AutoMenuRaceSetup = TEXT("RaceSetup");
@@ -81,6 +86,28 @@ void AMenuPlayerController::SetUpMenu()
 		CosmicHotshots::RaceUI::StartRaceWithCharacter(this, PickedCharacter);
 		return;
 	}
+	if (AutoMenu.Equals(AutoMenuAdventure, ESearchCase::IgnoreCase))
+	{
+		// What the Adventure menu would do: new game or load, then the level's race (which may be locked).
+		if (UAdventureSubsystem* Adventure = UAdventureSubsystem::Get(this))
+		{
+			const int32 SlotIndex = CosmicHotshots::RaceCVars::AdventureSlot.GetValueOnGameThread();
+			const int32 LevelIndex = CosmicHotshots::RaceCVars::AdventureLevel.GetValueOnGameThread();
+			if (CosmicHotshots::RaceCVars::AdventureNew.GetValueOnGameThread() != 0)
+			{
+				Adventure->StartNewGame(SlotIndex);
+			}
+			else
+			{
+				Adventure->LoadGame(SlotIndex);
+			}
+			UE_LOG(LogCosmicRace, Log, TEXT("FLOW main menu: auto Adventure slot %d level %d (unlocked=%d, section open=%d)"), SlotIndex, LevelIndex,
+				Adventure->IsLevelUnlocked(LevelIndex) ? 1 : 0,
+				Adventure->GetCampaign() && Adventure->IsSectionOpen(Adventure->GetCampaign()->GetSectionOfLevel(LevelIndex)) ? 1 : 0);
+			bAutoAdventureRaceStarted = Adventure->StartLevel(this, LevelIndex);
+		}
+		return;
+	}
 	const bool bAutoRaceSetup = AutoMenu.Equals(AutoMenuRaceSetup, ESearchCase::IgnoreCase);
 	if (!AutoMenu.IsEmpty() && !bAutoRaceSetup)
 	{
@@ -129,9 +156,10 @@ void AMenuPlayerController::TickTestHelpers(float DeltaTime)
 		FScreenshotRequest::RequestScreenshot(/*bInShowUI=*/true);
 	}
 
-	// With ch.Test.AutoMenu SingleRace the test goes on in the race map, which quits by its own clock.
+	// When ch.Test.AutoMenu started a race, the test goes on in the race map, which quits by its own clock.
 	const float AutoQuitTime = VehicleCVars::AutoQuitTime.GetValueOnGameThread();
-	if (AutoQuitTime > 0.f && MenuTime >= AutoQuitTime && !RaceCVars::AutoMenu.GetValueOnGameThread().Equals(AutoMenuSingleRace, ESearchCase::IgnoreCase))
+	if (AutoQuitTime > 0.f && MenuTime >= AutoQuitTime && !bAutoAdventureRaceStarted
+		&& !RaceCVars::AutoMenu.GetValueOnGameThread().Equals(AutoMenuSingleRace, ESearchCase::IgnoreCase))
 	{
 		FPlatformMisc::RequestExit(false);
 	}

@@ -74,6 +74,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Menus", meta = (AllowedClasses = "/Script/Engine.World"))
 	FSoftObjectPath MainMenuMap;
 
+	/** The Adventure Mode campaign: player character, sections and levels. */
+	UPROPERTY(Config, EditAnywhere, Category = "Adventure")
+	TSoftObjectPtr<class UAdventureCampaignDefinition> AdventureCampaign;
+
 	/** Which items the item boxes give. Empty = boxes give nothing. */
 	UPROPERTY(Config, EditAnywhere, Category = "Items")
 	TSoftObjectPtr<UItemLootTable> ItemLootTable;

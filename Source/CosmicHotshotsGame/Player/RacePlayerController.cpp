@@ -5,6 +5,7 @@
 #include "Game/GameFlowSubsystem.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/App.h"
+#include "Adventure/AdventureSubsystem.h"
 #include "Input/SystemInputConfig.h"
 #include "Player/PlayerSettingsSubsystem.h"
 #include "Race/RaceDebug.h"
@@ -257,6 +258,12 @@ void ARacePlayerController::HandleRaceFinished(const FRaceResultData& Results)
 		Flow->SetLastResults(Results);
 	}
 	UE_LOG(LogCosmicRace, Log, TEXT("FLOW results: %d drivers, race time %.3f"), Results.Entries.Num(), Results.RaceTime);
+
+	// Adventure progression: a win unlocks the next level. Before the "no window" return, so headless tests see it.
+	if (UAdventureSubsystem* Adventure = UAdventureSubsystem::Get(this))
+	{
+		Adventure->HandleRaceFinished(Results);
+	}
 
 	if (!FApp::CanEverRender())
 	{

@@ -52,9 +52,6 @@ protected:
 	virtual void HandleButton(int32 ButtonIndex) override;
 
 private:
-	/** Placeholder for the parts of the menu that later steps of Phase 2b add. */
-	void ShowNotAvailable(const FText& What);
-
 	void HandleExitChoice(int32 AnswerIndex);
 };
 

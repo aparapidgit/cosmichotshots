@@ -4,6 +4,7 @@
 #include "AI/AIDifficultyData.h"
 #include "Camera/CameraTuningData.h"
 #include "Player/PlayerSettingsSubsystem.h"
+#include "UI/AdventureScreens.h"
 #include "Game/CosmicHotshotsSettings.h"
 #include "Game/GameFlowSubsystem.h"
 #include "GameFramework/PlayerController.h"
@@ -94,7 +95,7 @@ void UMainMenuWidget::HandleButton(int32 ButtonIndex)
 		break;
 
 	case MainMenuAdventureButton:
-		ShowNotAvailable(LOCTEXT("AdventureMode", "Adventure Mode"));
+		OpenChildScreen(CreateScreen<UAdventureMenuWidget>());
 		break;
 
 	case MainMenuOptionsButton:
@@ -119,13 +120,6 @@ void UMainMenuWidget::HandleButton(int32 ButtonIndex)
 void UMainMenuWidget::OpenRaceSetup()
 {
 	OpenChildScreen(CreateScreen<URaceSetupWidget>());
-}
-
-void UMainMenuWidget::ShowNotAvailable(const FText& What)
-{
-	UMenuDialogWidget* Dialog = CreateScreen<UMenuDialogWidget>();
-	Dialog->Setup(What.ToUpper(), LOCTEXT("NotAvailable", "Not available yet."), { LOCTEXT("DialogBack", "Back") });
-	OpenChildScreen(Dialog);
 }
 
 void UMainMenuWidget::HandleExitChoice(int32 AnswerIndex)

@@ -46,6 +46,9 @@ private:
 	float MenuTime = 0.f;
 	bool bMenuScreenshotTaken = false;
 
+	/** Test helper ch.Test.AutoMenu Adventure started a race: this map is about to be left. */
+	bool bAutoAdventureRaceStarted = false;
+
 	UPROPERTY(Transient)
 	TObjectPtr<URaceScreenWidget> MenuWidget;
 };

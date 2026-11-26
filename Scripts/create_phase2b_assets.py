@@ -11,7 +11,12 @@ An IMC_System / DA_SystemInput made by an older version of this script only gets
 bindings of actions that are new, and references that are still empty. Nothing in them is changed or removed.
 The driving assets (IMC_Driving, DA_DrivingInput) are not touched.
 
-The project settings point at DA_SystemInput: Config/DefaultGame.ini (CosmicHotshotsSettings, SystemInput).
+Adventure Mode (placeholder campaign: every level on the test track, difficulty rising):
+  /Game/Data/Adventure/DA_AdventureLevel_S<section>_L<level>   3 sections x 4 levels (UAdventureLevelDefinition)
+  /Game/Data/Adventure/DA_AdventureCampaign                    player character Spark, the 3 sections in order
+
+The project settings point at DA_SystemInput and DA_AdventureCampaign: Config/DefaultGame.ini
+(CosmicHotshotsSettings: SystemInput, AdventureCampaign).
 
 HOW TO RUN (the editor must be closed)
   UnrealEditor-Cmd.exe <project>.uproject -run=pythonscript -script="<this file>"
@@ -42,6 +47,18 @@ CONFIG_ACTIONS = {
     "toggle_hud": "IA_ToggleHud",
 }
 
+ADVENTURE_DIR = "/Game/Data/Adventure"
+ADVENTURE_PLAYER = "/Game/Data/Characters/DA_Character_Spark"
+ADVENTURE_TRACK = "/Game/Data/Tracks/DA_Track_TestTrack"
+
+# One row per level, in campaign order: (rivals, AI difficulty index, laps). Placeholders to tune.
+# Difficulty indices: 0 Easy, 1 Normal, 2 Hard.
+ADVENTURE_SECTIONS = [
+    ("Section 1", [(3, 0, 2), (3, 0, 2), (4, 0, 2), (4, 1, 2)]),
+    ("Section 2", [(5, 1, 3), (5, 1, 3), (6, 1, 3), (6, 2, 3)]),
+    ("Section 3", [(7, 2, 3), (7, 2, 3), (7, 2, 3), (7, 2, 3)]),
+]
+
 asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
 eal = unreal.EditorAssetLibrary
 
@@ -66,6 +83,38 @@ def make_mapping(action, key_name):
     mapping.set_editor_property("action", action)
     mapping.set_editor_property("key", key)
     return mapping
+
+
+def create_adventure_campaign(changed):
+    """The placeholder campaign. Existing level and campaign assets are left exactly as they are."""
+    track = eal.load_asset(ADVENTURE_TRACK)
+    sections = []
+    for section_index, (section_name, levels) in enumerate(ADVENTURE_SECTIONS):
+        level_assets = []
+        for level_index, (rivals, difficulty, laps) in enumerate(levels):
+            level_id = "S%d_L%d" % (section_index + 1, level_index + 1)
+            level, created = get_or_create("DA_AdventureLevel_%s" % level_id, ADVENTURE_DIR,
+                                           unreal.AdventureLevelDefinition, unreal.DataAssetFactory())
+            if created:
+                level.set_editor_property("portal_id", level_id)
+                level.set_editor_property("display_name", "Level %d-%d" % (section_index + 1, level_index + 1))
+                level.set_editor_property("track", track)
+                level.set_editor_property("num_laps", laps)
+                level.set_editor_property("num_rivals", rivals)
+                level.set_editor_property("ai_difficulty", difficulty)
+                changed.append(level)
+            level_assets.append(level)
+        section = unreal.AdventureSection()
+        section.set_editor_property("display_name", section_name)
+        section.set_editor_property("levels", level_assets)
+        sections.append(section)
+
+    campaign, created = get_or_create("DA_AdventureCampaign", ADVENTURE_DIR,
+                                      unreal.AdventureCampaignDefinition, unreal.DataAssetFactory())
+    if created:
+        campaign.set_editor_property("player_character", eal.load_asset(ADVENTURE_PLAYER))
+        campaign.set_editor_property("sections", sections)
+        changed.append(campaign)
 
 
 def main():
@@ -112,6 +161,8 @@ def main():
                 unreal.log("set DA_SystemInput.%s" % property_name)
     if config_changed:
         changed.append(config)
+
+    create_adventure_campaign(changed)
 
     for asset in changed:
         eal.save_loaded_asset(asset, only_if_is_dirty=False)

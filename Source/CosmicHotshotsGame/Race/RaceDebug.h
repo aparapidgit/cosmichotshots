@@ -67,6 +67,11 @@ namespace CosmicHotshots::RaceCVars
 	/** Test helper: quit at this wall-clock time (s, also while paused). 0 = off. */
 	extern TAutoConsoleVariable<float> WallQuitTime;
 
+	/** Test helper for ch.Test.AutoMenu "Adventure": the save slot, 1 = start a new game in it (else load it), and the level to start. */
+	extern TAutoConsoleVariable<int32> AdventureSlot;
+	extern TAutoConsoleVariable<int32> AdventureNew;
+	extern TAutoConsoleVariable<int32> AdventureLevel;
+
 	/** Seed of the draw that gives the rivals of a Single Race their characters. Negative = a new draw every time. */
 	extern TAutoConsoleVariable<int32> AICharacterSeed;
 }

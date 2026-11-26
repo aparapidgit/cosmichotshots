@@ -105,12 +105,12 @@ TSharedRef<SWidget> URaceScreenWidget::RebuildWidget()
 		UBorder* Background = WidgetTree->ConstructWidget<UBorder>();
 		// Over a paused race the screen is see-through, so the race (and the Options live preview) shows behind it.
 		const APlayerController* OwningPlayer = GetOwningPlayer();
-		FLinearColor BackColour = ScreenBackColour;
+		FLinearColor PanelColour = ScreenBackColour;
 		if (OwningPlayer && OwningPlayer->IsPaused())
 		{
-			BackColour.A = PausedScreenBackOpacity;
+			PanelColour.A = PausedScreenBackOpacity;
 		}
-		Background->SetBrushColor(BackColour);
+		Background->SetBrushColor(PanelColour);
 		Background->SetHorizontalAlignment(HAlign_Center);
 		Background->SetVerticalAlignment(VAlign_Center);
 		WidgetTree->RootWidget = Background;

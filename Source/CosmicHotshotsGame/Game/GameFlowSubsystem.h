@@ -88,6 +88,13 @@ public:
 	 */
 	void OpenMainMenu(const UObject* WorldContext, bool bOpenRaceSetup = false);
 
+	/**
+	 * Draws Count characters at random from the race characters nobody in Taken drives (fewer when not enough
+	 * are left). Menus call this while they build a race setup, so nothing random is left for the race itself.
+	 * OutSeed = the seed used (ch.Race.AICharacterSeed, or a new one every time).
+	 */
+	static TArray<const UCharacterDefinition*> DrawRivalCharacters(int32 Count, const TArray<const UCharacterDefinition*>& Taken, int32& OutSeed);
+
 	/** True once after OpenMainMenu(..., true): the main menu asks this when it starts, and then shows the race setup. */
 	bool ConsumeRaceSetupRequest();
 

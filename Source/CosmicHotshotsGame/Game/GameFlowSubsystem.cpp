@@ -1,6 +1,7 @@
 #include "Game/GameFlowSubsystem.h"
 
 #include "CosmicHotshotsGame.h"
+#include "Adventure/AdventureSubsystem.h"
 #include "Character/CharacterDefinition.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -13,6 +14,22 @@ UGameFlowSubsystem* UGameFlowSubsystem::Get(const UObject* WorldContext)
 	const UWorld* World = WorldContext ? WorldContext->GetWorld() : nullptr;
 	UGameInstance* GameInstance = World ? World->GetGameInstance() : nullptr;
 	return GameInstance ? GameInstance->GetSubsystem<UGameFlowSubsystem>() : nullptr;
+}
+
+TArray<const UCharacterDefinition*> UGameFlowSubsystem::DrawRivalCharacters(int32 Count, const TArray<const UCharacterDefinition*>& Taken, int32& OutSeed)
+{
+	TArray<const UCharacterDefinition*> Pool = GetDefault<UCosmicHotshotsSettings>()->GetRaceCharacters();
+	Pool.RemoveAll([&Taken](const UCharacterDefinition* Candidate) { return Taken.Contains(Candidate); });
+
+	const int32 CVarSeed = CosmicHotshots::RaceCVars::AICharacterSeed.GetValueOnGameThread();
+	OutSeed = CVarSeed >= 0 ? CVarSeed : static_cast<int32>(FPlatformTime::Cycles64() & MAX_int32);
+	FRandomStream Random(OutSeed);
+	for (int32 Index = Pool.Num() - 1; Index > 0; --Index)
+	{
+		Pool.Swap(Index, Random.RandRange(0, Index));
+	}
+	Pool.SetNum(FMath::Clamp(Count, 0, Pool.Num()));
+	return Pool;
 }
 
 bool UGameFlowSubsystem::ConsumeRaceSetupRequest()
@@ -38,23 +55,24 @@ void UGameFlowSubsystem::StartSingleRace(const UObject* WorldContext)
 	NewConfig.NumAIOpponents = FMath::Clamp(NewConfig.NumAIOpponents, 0, UCosmicHotshotsSettings::MaxGridSize - NewConfig.HumanCharacters.Num());
 
 	// Rivals: a random draw from the characters nobody drives, made now. Characters stay unique per race.
-	TArray<const UCharacterDefinition*> Pool = Settings->GetRaceCharacters();
-	Pool.RemoveAll([&NewConfig](const UCharacterDefinition* Candidate) { return NewConfig.HumanCharacters.Contains(Candidate); });
-
-	const int32 CVarSeed = CosmicHotshots::RaceCVars::AICharacterSeed.GetValueOnGameThread();
-	const int32 Seed = CVarSeed >= 0 ? CVarSeed : static_cast<int32>(FPlatformTime::Cycles64() & MAX_int32);
-	FRandomStream Random(Seed);
-	for (int32 Index = Pool.Num() - 1; Index > 0; --Index)
+	TArray<const UCharacterDefinition*> Taken;
+	for (const UCharacterDefinition* Human : NewConfig.HumanCharacters)
 	{
-		Pool.Swap(Index, Random.RandRange(0, Index));
+		Taken.Add(Human);
 	}
-
+	int32 Seed = 0;
 	FString RivalNames;
 	NewConfig.AICharacters.Reset();
-	for (int32 Index = 0; Index < NewConfig.NumAIOpponents && Index < Pool.Num(); ++Index)
+	for (const UCharacterDefinition* Rival : DrawRivalCharacters(NewConfig.NumAIOpponents, Taken, Seed))
 	{
-		NewConfig.AICharacters.Add(Pool[Index]);
-		RivalNames += (Index > 0 ? TEXT(",") : TEXT("")) + GetNameSafe(Pool[Index]);
+		RivalNames += (NewConfig.AICharacters.IsEmpty() ? TEXT("") : TEXT(",")) + GetNameSafe(Rival);
+		NewConfig.AICharacters.Add(Rival);
+	}
+
+	// A Single Race is never an Adventure level.
+	if (UAdventureSubsystem* Adventure = UAdventureSubsystem::Get(WorldContext))
+	{
+		Adventure->ClearCurrentLevel();
 	}
 
 	UE_LOG(LogCosmicRace, Log, TEXT("FLOW single race: player=%s rivals=%d laps=%d difficulty=%d items=%d track=%s seed=%d ai=[%s]"),
@@ -75,6 +93,10 @@ void UGameFlowSubsystem::OpenMainMenu(const UObject* WorldContext, bool bOpenRac
 
 	ClearRaceConfig();
 	bRaceSetupRequested = bOpenRaceSetup;
+	if (UAdventureSubsystem* Adventure = UAdventureSubsystem::Get(WorldContext))
+	{
+		Adventure->ClearCurrentLevel();
+	}
 
 	const FSoftObjectPath& MenuMap = GetDefault<UCosmicHotshotsSettings>()->MainMenuMap;
 	if (!MenuMap.IsValid())

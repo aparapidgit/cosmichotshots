@@ -59,7 +59,7 @@ namespace CosmicHotshots::RaceCVars
 
 	TAutoConsoleVariable<FString> AutoMenu(
 		TEXT("ch.Test.AutoMenu"), TEXT(""),
-		TEXT("Test helper: what the main menu map does by itself, without a screen. \"SingleRace\" = start a single race with the character of ch.Test.AutoSelectCharacter (setup: ch.Test.AutoSetup), \"RaceSetup\" = open the race setup screen. Empty = nothing."), ECVF_Cheat);
+		TEXT("Test helper: what the main menu map does by itself, without a screen. \"SingleRace\" = start a single race with the character of ch.Test.AutoSelectCharacter (setup: ch.Test.AutoSetup), \"RaceSetup\" = open the race setup screen, \"Adventure\" = new game or load (ch.Test.AdventureNew, ch.Test.AdventureSlot) and start the level ch.Test.AdventureLevel. Empty = nothing."), ECVF_Cheat);
 
 	TAutoConsoleVariable<FString> AutoSetup(
 		TEXT("ch.Test.AutoSetup"), TEXT(""),
@@ -76,6 +76,18 @@ namespace CosmicHotshots::RaceCVars
 	TAutoConsoleVariable<float> WallQuitTime(
 		TEXT("ch.Test.WallQuitTime"), 0.f,
 		TEXT("Test helper: quit at this wall-clock time in seconds since the game started ticking (also while paused). 0 = off."), ECVF_Cheat);
+
+	TAutoConsoleVariable<int32> AdventureSlot(
+		TEXT("ch.Test.AdventureSlot"), 0,
+		TEXT("Test helper for ch.Test.AutoMenu Adventure: the save slot (0..2)."), ECVF_Cheat);
+
+	TAutoConsoleVariable<int32> AdventureNew(
+		TEXT("ch.Test.AdventureNew"), 0,
+		TEXT("Test helper for ch.Test.AutoMenu Adventure: 1 = start a new game in the slot, 0 = load it."), ECVF_Cheat);
+
+	TAutoConsoleVariable<int32> AdventureLevel(
+		TEXT("ch.Test.AdventureLevel"), 0,
+		TEXT("Test helper for ch.Test.AutoMenu Adventure: index of the level to start (0 = first)."), ECVF_Cheat);
 
 	TAutoConsoleVariable<int32> AICharacterSeed(
 		TEXT("ch.Race.AICharacterSeed"), -1,
