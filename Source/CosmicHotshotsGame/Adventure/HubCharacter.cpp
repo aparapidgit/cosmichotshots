@@ -186,6 +186,7 @@ void AHubPlayerController::PlayerTick(float DeltaTime)
 
 	ApplyMovementInput(DeltaTime);
 	UpdateNearby();
+	UpdateSectionIntro();
 
 	if (MessageTimeRemaining > 0.f)
 	{
@@ -231,6 +232,18 @@ void AHubPlayerController::SetUpHub()
 		}
 		UE_LOG(LogCosmicRace, Log, TEXT("HUB entered: %d/%d levels won; last race level=%d won=%d unlocked=%d openedSection=%d"),
 			Adventure->GetNumLevelsWon(), Campaign->GetNumLevels(), Outcome.LevelIndex, Outcome.bWon ? 1 : 0, Outcome.UnlockedLevelIndex, Outcome.OpenedSectionIndex);
+	}
+
+	// A new adventure begins with the intro, once.
+	if (Adventure && Campaign && !Adventure->IsIntroSeen())
+	{
+		QueueCinematic(Campaign->IntroVideo, LOCTEXT("CinematicIntro", "Intro"), [this]()
+		{
+			if (UAdventureSubsystem* DoneAdventure = UAdventureSubsystem::Get(this))
+			{
+				DoneAdventure->MarkIntroSeen();
+			}
+		});
 	}
 
 #if !UE_BUILD_SHIPPING
@@ -343,7 +356,7 @@ void AHubPlayerController::UpdateNearby()
 
 void AHubPlayerController::HandleInteractPressed()
 {
-	if (NearbyPortal && !IsPaused())
+	if (NearbyPortal && !IsPaused() && !bCinematicPlaying)
 	{
 		TryEnterPortal(NearbyPortal);
 	}
@@ -356,11 +369,102 @@ void AHubPlayerController::TryEnterPortal(const AAdventurePortal* Portal)
 	{
 		return;
 	}
+	const UAdventureCampaignDefinition* Campaign = Adventure->GetCampaign();
+	const int32 LevelIndex = Portal->GetLevelIndex();
+	const UAdventureLevelDefinition* Level = Campaign ? Campaign->GetLevel(LevelIndex) : nullptr;
+
 	// A locked portal says so (the prompt already does) and nothing starts.
-	if (!Adventure->StartLevel(this, Portal->GetLevelIndex()))
+	if (!Level || !Adventure->IsLevelUnlocked(LevelIndex))
 	{
+		UE_LOG(LogCosmicRace, Log, TEXT("ADVENTURE level %d is locked"), LevelIndex);
 		ShowMessage(LOCTEXT("PortalLockedMessage", "This portal is locked."));
+		return;
 	}
+
+	// The level's cinematic first, then its race.
+	QueueCinematic(Level->IntroVideo, Level->DisplayName, [this, LevelIndex]()
+	{
+		if (UAdventureSubsystem* RaceAdventure = UAdventureSubsystem::Get(this))
+		{
+			RaceAdventure->StartLevel(this, LevelIndex);
+		}
+	});
+}
+
+void AHubPlayerController::QueueCinematic(const FSoftObjectPath& Video, const FText& Name, TFunction<void()> Then)
+{
+	FPendingCinematic& Pending = CinematicQueue.AddDefaulted_GetRef();
+	Pending.Video = Video;
+	Pending.Name = Name;
+	Pending.Then = MoveTemp(Then);
+	if (!bCinematicPlaying)
+	{
+		PlayNextCinematic();
+	}
+}
+
+void AHubPlayerController::PlayNextCinematic()
+{
+	if (CinematicQueue.IsEmpty())
+	{
+		return;
+	}
+	FPendingCinematic Pending = MoveTemp(CinematicQueue[0]);
+	CinematicQueue.RemoveAt(0);
+	bCinematicPlaying = true;
+	CinematicThen = MoveTemp(Pending.Then);
+
+	// THE place where a real video takes over: Pending.Video is the media source of the data asset.
+	// Playback is not built yet, so an assigned video is reported and the placeholder is shown instead.
+	UE_LOG(LogCosmicRace, Log, TEXT("CINEMATIC %s: %s"), *Pending.Name.ToString(),
+		Pending.Video.IsValid() ? TEXT("video assigned, playback not built yet: placeholder") : TEXT("placeholder"));
+
+	// Without a window there is nothing to show: the cinematic ends at once.
+	if (!FApp::CanEverRender())
+	{
+		HandleCinematicFinished();
+		return;
+	}
+	UCinematicPlaceholderWidget* Screen = CreateWidget<UCinematicPlaceholderWidget>(this, UCinematicPlaceholderWidget::StaticClass());
+	Screen->Setup(Pending.Name, UAdventureHubTuningData::Get()->CinematicPlaceholderDuration);
+	Screen->OnFinished.AddUObject(this, &AHubPlayerController::HandleCinematicFinished);
+	Screen->ShowScreen();
+}
+
+void AHubPlayerController::HandleCinematicFinished()
+{
+	bCinematicPlaying = false;
+	TFunction<void()> Then = MoveTemp(CinematicThen);
+	CinematicThen = nullptr;
+	if (Then)
+	{
+		Then();
+	}
+	if (!bCinematicPlaying)
+	{
+		PlayNextCinematic();
+	}
+}
+
+void AHubPlayerController::UpdateSectionIntro()
+{
+	UAdventureSubsystem* Adventure = UAdventureSubsystem::Get(this);
+	const UAdventureCampaignDefinition* Campaign = Adventure ? Adventure->GetCampaign() : nullptr;
+	const APawn* OwnPawn = GetPawn();
+	if (!Campaign || !OwnPawn || bCinematicPlaying)
+	{
+		return;
+	}
+
+	// The first section is where the adventure starts (the campaign intro covers it); every later section
+	// has its own cinematic the first time the character walks into it.
+	const int32 SectionIndex = CosmicHotshots::HubLayout::GetSectionAt(*UAdventureHubTuningData::Get(), Campaign->Sections.Num(), OwnPawn->GetActorLocation());
+	if (SectionIndex <= 0 || !Campaign->Sections.IsValidIndex(SectionIndex) || !Adventure->IsSectionOpen(SectionIndex) || Adventure->IsSectionIntroSeen(SectionIndex))
+	{
+		return;
+	}
+	Adventure->MarkSectionIntroSeen(SectionIndex);
+	QueueCinematic(Campaign->Sections[SectionIndex].IntroVideo, Campaign->Sections[SectionIndex].DisplayName, nullptr);
 }
 
 void AHubPlayerController::HandlePausePressed()

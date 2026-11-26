@@ -107,6 +107,54 @@ void UHubHudWidget::SetMessage(const FText& Text)
 	}
 }
 
+// --- UCinematicPlaceholderWidget
+
+void UCinematicPlaceholderWidget::Setup(const FText& InName, float InDuration)
+{
+	Name = InName;
+	TimeRemaining = InDuration;
+}
+
+void UCinematicPlaceholderWidget::BuildScreen()
+{
+	AddTitle(FText::Format(LOCTEXT("CinematicTitle", "CINEMATIC PLACEHOLDER:  {0}"), Name));
+	AddLine(LOCTEXT("CinematicLine", "A video will play here."));
+	AddButton(LOCTEXT("CinematicSkip", "Skip"));
+}
+
+void UCinematicPlaceholderWidget::HandleButton(int32 ButtonIndex)
+{
+	Finish();
+}
+
+bool UCinematicPlaceholderWidget::HandleBackOnRoot()
+{
+	Finish();
+	return true;
+}
+
+void UCinematicPlaceholderWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+
+	TimeRemaining -= InDeltaTime;
+	if (TimeRemaining <= 0.f)
+	{
+		Finish();
+	}
+}
+
+void UCinematicPlaceholderWidget::Finish()
+{
+	if (bFinished)
+	{
+		return;
+	}
+	bFinished = true;
+	HideScreen();
+	OnFinished.Broadcast();
+}
+
 // --- UHubPauseMenuWidget
 
 void UHubPauseMenuWidget::BuildScreen()

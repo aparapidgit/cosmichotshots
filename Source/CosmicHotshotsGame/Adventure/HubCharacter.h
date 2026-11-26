@@ -79,6 +79,29 @@ private:
 
 	void ShowMessage(const FText& Message);
 
+	/**
+	 * Cinematics play one after the other; Then runs when its cinematic has ended (or was skipped).
+	 * Video = the real video of the data asset; empty (always, for now) = the placeholder screen named Name.
+	 */
+	void QueueCinematic(const FSoftObjectPath& Video, const FText& Name, TFunction<void()> Then);
+	void PlayNextCinematic();
+	void HandleCinematicFinished();
+
+	/** Plays the intro of a section the character has walked into for the first time. */
+	void UpdateSectionIntro();
+
+	struct FPendingCinematic
+	{
+		FSoftObjectPath Video;
+		FText Name;
+		TFunction<void()> Then;
+	};
+	TArray<FPendingCinematic> CinematicQueue;
+
+	/** What to run when the cinematic on screen has ended. */
+	TFunction<void()> CinematicThen;
+	bool bCinematicPlaying = false;
+
 	FVector2D GetAxis2D(const UInputAction* Action) const;
 	bool GetButton(const UInputAction* Action) const;
 

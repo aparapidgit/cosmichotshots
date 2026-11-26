@@ -79,6 +79,11 @@ FVector CosmicHotshots::HubLayout::GetGateLocation(const UAdventureHubTuningData
 	return FVector(SectionIndex * Tuning.SectionLength, 0.f, 0.f);
 }
 
+int32 CosmicHotshots::HubLayout::GetSectionAt(const UAdventureHubTuningData& Tuning, int32 NumSections, const FVector& Location)
+{
+	return FMath::Clamp(FMath::FloorToInt32(Location.X / FMath::Max(Tuning.SectionLength, 1.f)), 0, FMath::Max(NumSections - 1, 0));
+}
+
 FTransform CosmicHotshots::HubLayout::GetPlayerStart(const UAdventureHubTuningData& Tuning)
 {
 	return FTransform(FRotator::ZeroRotator, FVector(Tuning.PlayerStartInset, 0.f, 0.f));

@@ -137,6 +137,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "On Foot", meta = (ClampMin = "0.01"))
 	float MouseLookScale = 0.25f;
 
+	/** How long a cinematic placeholder screen stays up before it ends by itself (the player can skip it sooner). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Cinematics", meta = (ClampMin = "0.5"))
+	float CinematicPlaceholderDuration = 4.f;
+
 	/** How long the "level unlocked" / "gate open" message stays on screen after a race. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "On Foot", meta = (ClampMin = "0.0"))
 	float MessageDuration = 6.f;

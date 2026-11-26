@@ -42,6 +42,37 @@ private:
 	TObjectPtr<UTextBlock> MessageText;
 };
 
+/**
+ * Cinematic placeholder: a full screen that says which cinematic belongs here. It ends when the player
+ * skips it (any accept or back button) or by itself after its duration, and then calls OnFinished once.
+ * A real video replaces this screen later; the caller (AHubPlayerController::PlayNextCinematic) is the one
+ * place that decides between a video and the placeholder.
+ */
+UCLASS()
+class COSMICHOTSHOTSGAME_API UCinematicPlaceholderWidget : public URaceScreenWidget
+{
+	GENERATED_BODY()
+
+public:
+	/** Call before the screen is shown. InName = what the cinematic is ("Intro", "Section 2", "Level 1-3"). */
+	void Setup(const FText& InName, float InDuration);
+
+	FSimpleMulticastDelegate OnFinished;
+
+protected:
+	virtual void BuildScreen() override;
+	virtual void HandleButton(int32 ButtonIndex) override;
+	virtual bool HandleBackOnRoot() override;
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+
+private:
+	void Finish();
+
+	FText Name;
+	float TimeRemaining = 0.f;
+	bool bFinished = false;
+};
+
 /** Pause menu of the hub: Resume, Options, Level list (dev shortcut into any open level), Main menu. */
 UCLASS()
 class COSMICHOTSHOTSGAME_API UHubPauseMenuWidget : public URaceScreenWidget

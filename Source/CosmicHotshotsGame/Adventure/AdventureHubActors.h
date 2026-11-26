@@ -25,6 +25,9 @@ namespace CosmicHotshots::HubLayout
 	/** Centre of the opening that leads INTO a section (section 1 and later), at floor level. */
 	COSMICHOTSHOTSGAME_API FVector GetGateLocation(const UAdventureHubTuningData& Tuning, int32 SectionIndex);
 
+	/** Section a spot of the placeholder hub lies in (clamped to the hub's sections). */
+	COSMICHOTSHOTSGAME_API int32 GetSectionAt(const UAdventureHubTuningData& Tuning, int32 NumSections, const FVector& Location);
+
 	/** Where the player stands when the hub is entered from the menu, facing along the row of sections. */
 	COSMICHOTSHOTSGAME_API FTransform GetPlayerStart(const UAdventureHubTuningData& Tuning);
 }
