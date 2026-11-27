@@ -57,6 +57,10 @@
 #                        -Seconds 80 -LogInterval 10 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Race.Laps 1,ch.Race.AIOpponents 1,ch.Race.AIDifficulty 1,ch.Test.SpawnZones TurboHub@100:0/EnergyDock@250:0/GravityAbyss@400:0/GravityAbyss@520:0/ArrowsPad@650:0:90/Magnetonium@900:8/DustVortex@1200:0/WarpGate@1500:0/MeteorCluster@1800:0/SpectralTower@2100:0"
 #   Meteor hit on a parked car: -Seconds 60 -LogInterval 20 -ExtraCmds "ch.Test.StartBoostCharge 1,ch.Test.SpawnZones MeteorCluster@-8:0"   (one "HIT by meteor" line)
 #   "ch.Debug.Zones 1" draws every zone. A race without zones is unchanged.
+# Active abilities (ABILITY lines: fired / not fired with the reason / moved; computer drivers fire theirs by a simple rule):
+#   One character as the player, button pressed every 6 s (roster index: 2 Spark, 3 Sulgwen, 4 Freya, 5 Killjoke, 6 Glick, 7 Wilqis):
+#                        -Seconds 45 -LogInterval 60 -ExtraCmds "ch.Test.ScriptedInput 6,ch.Race.Laps 1,ch.Race.AIOpponents 3,ch.Race.AIDifficulty 0,ch.Test.PlayerGridSlot 7,ch.Test.PlayerCharacter 4,ch.Test.StartBoostCharge 1,ch.Test.UseAbilityEvery 6"
+#   (fires while a whole segment is in the meter and the condition is met; "not fired ... kept" lines must show the meter unchanged)
 # Item boxes (placeholder item "Empty": ITEM PICKUP / ROLL_DONE / USE / REPLACE / RESPAWN lines; scripted mode 9 presses use every 8 s):
 #   -Seconds 135 -LogInterval 20 -TimeoutSeconds 900 -ExtraCmds "ch.Test.ScriptedInput 9,ch.Race.Laps 2,ch.Race.AIOpponents 7,ch.Test.PlayerGridSlot 7"
 #   "ch.Race.ItemBoxes 0" removes the boxes. Loot table check: -ExecOnly "ch.Item.PrintLoot 8"

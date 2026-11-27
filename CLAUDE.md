@@ -118,6 +118,13 @@ Spark appears behind the rival and still has to overtake by driving. Wilqis take
 
 Range, duration and strength of the effects are to be tuned by playtesting.
 
+Button rules (developer decisions, built):
+- A press fires the ability only when it is off cooldown, the meter holds one whole segment and the ability's condition is met. Only then is the segment spent; a press that fires nothing costs nothing.
+- After it fired, the ability runs for its `ActiveTime` and can be used again 2 s (`Cooldown`, data) after it ended. A double press never spends two segments in a row.
+- HUD: the ability's line shows READY, ACTIVE (bright, pulsing), the cooldown (grey, coming back to the character's colour as it runs out), "needs 1 segment" or "not now". While a character's active ability runs, or its passive is giving the car something, the character's NAME in the standings glows in the character's colour (later: the portrait).
+- Computer drivers use a simple rule for now (fire 1 to 4 s after it becomes possible); using abilities well is part of the second AI pass.
+- Code: `UActiveAbilityDefinition` / `UActiveAbilityBase` per ability (`Ability/ActiveAbility.*`), `UVehicleAbilityComponent` on the car (cost, cooldown, button, effects from other cars), assets `/Game/Data/Abilities/DA_Ability_<Character>` written by `Scripts/create_ability_assets.py`.
+
 Notes for implementation:
 - Only the abilities in this table are designed. Slots 7 and 8 have no active ability yet; do not invent one.
 - Most abilities need race state that only exists from Phase 2: live ranking and the current leader (Sulgwen, Killjoke), the nearest rival ahead measured along the track spline (Spark, Wilqis), the track direction at a position (Wilqis), and effects applied to OTHER vehicles through the shared modifier stack (Freya, Killjoke, Glick, Sulgwen).

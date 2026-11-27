@@ -1,5 +1,7 @@
 #include "UI/RaceHudWidget.h"
 
+#include "Ability/VehicleAbilityComponent.h"
+
 #include "Blueprint/WidgetTree.h"
 #include "Character/CharacterDefinition.h"
 #include "Components/CanvasPanel.h"
@@ -44,6 +46,19 @@ namespace
 	const FLinearColor HudShadowColour(0.f, 0.f, 0.f, 0.85f);
 	const FVector2D HudShadowOffset(1.5, 1.5);
 	const FLinearColor HudOwnColour(1.f, 0.85f, 0.2f, 1.f);
+
+	// A glowing name (ability running or passive active): outline in the character's colour (px), text pulsing
+	// towards white by this share, this fast (radians per second).
+	constexpr int32 HudGlowOutlineSize = 2;
+	constexpr float HudGlowWhiteShare = 0.7f;
+	constexpr float HudGlowPulseRate = 9.f;
+	/** A used ability is drawn in this grey and comes back to the character's colour over its cooldown. */
+	const FLinearColor HudAbilityUsedColour(0.4f, 0.4f, 0.4f, 1.f);
+	/** An ability that is ready but whose condition is not met keeps this share of the character's colour. */
+	constexpr float HudAbilityBlockedColourShare = 0.5f;
+	// A passive's modifiers are named "Passive.<Character>"; the character assets are "DA_Character_<Character>".
+	const FString HudPassiveSourcePrefix(TEXT("Passive."));
+	const TCHAR* HudCharacterAssetPrefix = TEXT("DA_Character_");
 	const FLinearColor HudDimColour(0.75f, 0.75f, 0.75f, 1.f);
 
 	// Energy Core colours: a full segment can pay for the active ability, a part cannot; all orange while boosting.
@@ -142,6 +157,8 @@ TSharedRef<SWidget> URaceHudWidget::RebuildWidget()
 		PassiveText = MakeText(HudInfoFontSize);
 		PassiveText->SetColorAndOpacity(FSlateColor(HudOwnColour));
 		StatusBox->AddChildToVerticalBox(PassiveText)->SetHorizontalAlignment(HAlign_Right);
+		AbilityText = MakeText(HudInfoFontSize);
+		StatusBox->AddChildToVerticalBox(AbilityText)->SetHorizontalAlignment(HAlign_Right);
 		UCanvasPanelSlot* StatusSlot = Root->AddChildToCanvas(StatusBox);
 		StatusSlot->SetAnchors(FAnchors(1.f, 1.f));
 		StatusSlot->SetAlignment(FVector2D(1.0, 1.0));
@@ -191,6 +208,70 @@ void URaceHudWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 	UpdateEnergyCore(*OwnVehicle);
 	UpdateItemSlot(*RaceState, *OwnVehicle);
 	UpdatePassiveAndEffects(*OwnVehicle);
+	HudTime += InDeltaTime;
+	UpdateAbility(*OwnVehicle);
+}
+
+bool URaceHudWidget::IsCharacterPowerActive(const ARaceVehicle& Vehicle)
+{
+	if (Vehicle.GetAbility() && Vehicle.GetAbility()->GetHudState().ActiveRemaining > 0.f)
+	{
+		return true;
+	}
+	// The passive: a modifier on the car's own stack that its own passive put there ("Passive.<Character>").
+	const UCharacterDefinition* Character = Vehicle.GetCharacter();
+	if (!Character || !Vehicle.GetModifiers())
+	{
+		return false;
+	}
+	const FName PassiveSource(*(HudPassiveSourcePrefix + Character->GetName().Replace(HudCharacterAssetPrefix, TEXT(""))));
+	return Vehicle.GetModifiers()->GetStack().HasSource(PassiveSource);
+}
+
+void URaceHudWidget::UpdateAbility(const ARaceVehicle& OwnVehicle)
+{
+	const FAbilityHudState Ability = OwnVehicle.GetAbility() ? OwnVehicle.GetAbility()->GetHudState() : FAbilityHudState();
+	// Shown and hidden together with the passive indicator (one Options toggle).
+	AbilityText->SetVisibility(Ability.bHasAbility ? PassiveText->GetVisibility() : ESlateVisibility::Collapsed);
+	if (!Ability.bHasAbility)
+	{
+		return;
+	}
+
+	const UCharacterDefinition* Character = OwnVehicle.GetCharacter();
+	const FLinearColor Colour = Character ? Character->Colour : HudOwnColour;
+	const FString Name = Ability.DisplayName.ToString();
+	FString Text;
+	FLinearColor Shown = Colour;
+	if (Ability.ActiveRemaining > 0.f)
+	{
+		// Running: bright, pulsing.
+		Text = FString::Printf(TEXT("%s  ACTIVE"), *Name);
+		Shown = FMath::Lerp(Colour, FLinearColor::White, HudGlowWhiteShare * (0.5f + 0.5f * FMath::Sin(HudTime * HudGlowPulseRate)));
+	}
+	else if (Ability.CooldownRemaining > 0.f)
+	{
+		// Used: grey, coming back to the character's colour as the cooldown runs out.
+		const float Back = Ability.CooldownTotal > UE_SMALL_NUMBER ? 1.f - Ability.CooldownRemaining / Ability.CooldownTotal : 1.f;
+		Text = FString::Printf(TEXT("%s  %.1f s"), *Name, Ability.CooldownRemaining);
+		Shown = FMath::Lerp(HudAbilityUsedColour, Colour, FMath::Clamp(Back, 0.f, 1.f));
+	}
+	else if (!Ability.bEnoughEnergy)
+	{
+		Text = FString::Printf(TEXT("%s  (needs 1 segment)"), *Name);
+		Shown = HudAbilityUsedColour;
+	}
+	else if (!Ability.bConditionMet)
+	{
+		Text = FString::Printf(TEXT("%s  (not now)"), *Name);
+		Shown = FMath::Lerp(HudAbilityUsedColour, Colour, HudAbilityBlockedColourShare);
+	}
+	else
+	{
+		Text = FString::Printf(TEXT("%s  READY"), *Name);
+	}
+	AbilityText->SetText(FText::FromString(Text));
+	AbilityText->SetColorAndOpacity(FSlateColor(Shown));
 }
 
 void URaceHudWidget::UpdateStandings(const ARaceGameState& RaceState, const ARaceVehicle* OwnVehicle, bool bShowItemMarker)
@@ -214,7 +295,29 @@ void URaceHudWidget::UpdateStandings(const ARaceGameState& RaceState, const ARac
 		// "> " marks the local player; "[item]" is the generic "holds an item" mark; a finished driver is ticked off.
 		Line->SetText(FText::FromString(FString::Printf(TEXT("%s%d  %s%s%s"), bOwn ? TEXT("> ") : TEXT("   "), Standing.Rank, *Name,
 			bHoldsItem ? TEXT("  [item]") : TEXT(""), Standing.bFinished ? TEXT("  (finished)") : TEXT(""))));
-		Line->SetColorAndOpacity(FSlateColor(Character ? Character->Colour : FLinearColor::White));
+		// While the character's ability runs or its passive is giving the car something, the name glows in
+		// the character's colour: bright pulsing text with an outline of that colour.
+		const FLinearColor Colour = Character ? Character->Colour : FLinearColor::White;
+		const bool bGlow = IsCharacterPowerActive(*Standing.Vehicle);
+		if (!StandingGlow.IsValidIndex(Index))
+		{
+			StandingGlow.SetNumZeroed(StandingLines.Num());
+		}
+		if (StandingGlow[Index] != bGlow)
+		{
+			StandingGlow[Index] = bGlow;
+			FSlateFontInfo Font = Line->GetFont();
+			Font.OutlineSettings.OutlineSize = bGlow ? HudGlowOutlineSize : 0;
+			Line->SetFont(Font);
+		}
+		if (bGlow)
+		{
+			FSlateFontInfo Font = Line->GetFont();
+			Font.OutlineSettings.OutlineColor = Colour;
+			Line->SetFont(Font);
+		}
+		const float Pulse = 0.5f + 0.5f * FMath::Sin(HudTime * HudGlowPulseRate);
+		Line->SetColorAndOpacity(FSlateColor(bGlow ? FMath::Lerp(Colour, FLinearColor::White, HudGlowWhiteShare * Pulse) : Colour));
 		Line->SetVisibility(ESlateVisibility::HitTestInvisible);
 	}
 }

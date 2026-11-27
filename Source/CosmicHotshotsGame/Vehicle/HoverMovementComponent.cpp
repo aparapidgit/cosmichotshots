@@ -22,6 +22,7 @@
 #include "Vehicle/VehicleModifierComponent.h"
 #include "Vehicle/VehicleStatsComponent.h"
 #include "Vehicle/VehicleTuningData.h"
+#include "Ability/VehicleAbilityComponent.h"
 #include "Zone/VehicleZoneComponent.h"
 
 namespace
@@ -750,6 +751,25 @@ void UHoverMovementComponent::AsyncPhysicsTickComponent(float DeltaTime, float S
 			Body->SetX(ZoneStep.TeleportLocation);
 			Body->SetR(ZoneStep.TeleportRotation);
 			Body->SetV(ZoneStep.TeleportVelocity);
+			Body->SetW(FVector::ZeroVector);
+		}
+	}
+
+	// Active ability: the component decides whether a press fires it and pays for it from the boost meter.
+	// Only a car whose character has no ability still lets the physics spend a segment (placeholder).
+	// It also hands back what other cars' abilities do to this car (a pull, a move).
+	if (Ability && !bRaceLocked)
+	{
+		bool bLegacyPress = false;
+		const FVehicleZoneStep AbilityStep = Ability->StepAbility(DeltaTime, SimTime, FVector(Body->X()), FVector(Body->V()), bAbilityPressed,
+			SimState, Modifiers ? &Modifiers->GetStack() : nullptr, StepParams.BoostSegments, bLegacyPress);
+		bAbilityPressed = bLegacyPress;
+		StepParams.ExternalAcceleration += AbilityStep.Acceleration;
+		if (AbilityStep.bTeleport)
+		{
+			Body->SetX(AbilityStep.TeleportLocation);
+			Body->SetR(AbilityStep.TeleportRotation);
+			Body->SetV(AbilityStep.TeleportVelocity);
 			Body->SetW(FVector::ZeroVector);
 		}
 	}

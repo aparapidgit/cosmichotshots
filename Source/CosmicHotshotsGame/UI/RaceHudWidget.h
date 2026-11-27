@@ -41,6 +41,10 @@ private:
 	void UpdateEnergyCore(const ARaceVehicle& OwnVehicle);
 	void UpdateItemSlot(const ARaceGameState& RaceState, const ARaceVehicle& OwnVehicle);
 	void UpdatePassiveAndEffects(const ARaceVehicle& OwnVehicle);
+	void UpdateAbility(const ARaceVehicle& OwnVehicle);
+
+	/** Is the character's active ability running, or its passive giving the car something right now? (Its name glows then.) */
+	static bool IsCharacterPowerActive(const ARaceVehicle& Vehicle);
 
 	UPROPERTY(Transient)
 	TObjectPtr<UCanvasPanel> Root;
@@ -71,6 +75,16 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> PassiveText;
+
+	/** The active ability: ready, running, cooling down (grey, coming back to colour), or why it cannot fire. */
+	UPROPERTY(Transient)
+	TObjectPtr<UTextBlock> AbilityText;
+
+	/** Which standings lines are drawn glowing (so the font is only changed when that changes). */
+	TArray<bool> StandingGlow;
+
+	/** Seconds this HUD has been ticking; drives the pulse of a glowing name. */
+	float HudTime = 0.f;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTextBlock> EffectsText;

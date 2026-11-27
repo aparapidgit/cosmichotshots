@@ -25,6 +25,7 @@ namespace Chaos
 class FTrackSplineTable;
 class UPrimitiveComponent;
 class UVehicleModifierComponent;
+class UVehicleAbilityComponent;
 class UVehiclePassiveComponent;
 class UVehicleZoneComponent;
 class UVehicleStatsComponent;
@@ -51,6 +52,9 @@ public:
 
 	/** The component that applies the track's zones to this car; it is stepped inside the physics step. */
 	void SetZoneComponent(UVehicleZoneComponent* InZones) { Zones = InZones; }
+
+	/** The component that runs the character's active ability; it is stepped inside the physics step. */
+	void SetAbilityComponent(UVehicleAbilityComponent* InAbility) { Ability = InAbility; }
 
 	/** Latest driver intent. Called on the game thread by the owning vehicle. */
 	void SetInput(const FVehicleInputState& InInput);
@@ -153,6 +157,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UVehicleZoneComponent> Zones;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UVehicleAbilityComponent> Ability;
 
 	/** Test helper (ch.Test.SpeedModifier): the test modifier has been added. */
 	bool bTestModifierApplied = false;

@@ -8,6 +8,7 @@
 #include "Vehicle/VehicleStatModifiers.h"
 #include "CharacterDefinition.generated.h"
 
+class UActiveAbilityDefinition;
 class UPassiveDefinition;
 class UStaticMesh;
 class UTexture2D;
@@ -45,4 +46,8 @@ public:
 	/** Passive ability of this character (tunables and on/off switch). Empty = no passive. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Passive")
 	TObjectPtr<const UPassiveDefinition> PassiveDefinition;
+
+	/** Active ability of this character (fired with the ability button for one Energy Core segment). Empty = none designed yet. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Active ability")
+	TObjectPtr<const UActiveAbilityDefinition> ActiveAbility;
 };
